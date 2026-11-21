@@ -29,9 +29,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Isolated Supabase
-        run: npx --yes supabase@3.2.0 start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
-      - run: node tests/local-fixture.mjs
+      - run: npx tsx tests/local-fixture.ts
       - run: npm run e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

@@ -4,11 +4,12 @@ import { X } from "lucide-react";
 import { mutate } from "@/app/finance-actions";
 import { businessDate, currencies } from "@/lib/finance";
 import type { Project, Supplier } from "@/lib/queries";
+import { providerCatalog } from "@/lib/connectors";
 import { categoryNames } from "./dashboard";
 
 const titles: Record<string, string> = {
   expense: "הוספת הוצאה", project: "פרויקט חדש", invoice: "העלאת חשבונית",
-  subscription: "מנוי חדש", supplier: "ספק חדש", fx: "עדכון שער המרה",
+  subscription: "מנוי חדש", supplier: "ספק חדש", fx: "עדכון שער המרה", account: "חשבון ספק חדש",
 };
 
 export function FormFields({ path, month }: { path: string; month: string }) {
@@ -19,7 +20,7 @@ export function FormPanel({ kind, path, month, projects, suppliers, candidates =
   candidates?: { id: string; description: string; recorded_on: string }[];
 }) {
   if (!kind || !titles[kind]) return null;
-  const canSubmit = (!(kind === "invoice" || kind === "subscription") || suppliers.length > 0) && (kind !== "fx" || candidates.length > 0);
+  const canSubmit = (!(kind === "invoice" || kind === "subscription" || kind === "account") || suppliers.length > 0) && (kind !== "fx" || candidates.length > 0);
   return <section className="panel content-panel inline-form" aria-labelledby="add-heading">
     <div className="panel-heading"><h2 id="add-heading">{titles[kind]}</h2><Link className="icon-button" aria-label="סגירה" href={`${path}?month=${month}`}><X size={18}/></Link></div>
     <form action={mutate.bind(null, kind)}>
@@ -51,6 +52,10 @@ export function FormPanel({ kind, path, month, projects, suppliers, candidates =
           <label>תאריך חשבונית<input type="date" name="issued" required/></label>
           <label>קובץ PDF עד 4 MB<input type="file" name="file" accept="application/pdf" required/></label>
           <MoneyFields required/>
+        </>}
+        {kind === "account" && <>
+          <SupplierPicker rows={suppliers}/><label>מקור נתונים<select name="provider">{providerCatalog.map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          <label>מזהה חשבון אצל הספק<input name="external" dir="ltr" maxLength={160} required/></label>
         </>}
         {kind === "fx" && <>
           <label>הוצאה<select name="charge" required>{candidates.map(row => <option key={row.id} value={row.id}>{row.description} · {row.recorded_on}</option>)}</select></label>

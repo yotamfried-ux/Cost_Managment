@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { House, Layers3, CreditCard, FileText, UsersRound, ChartNoAxesColumnIncreasing, Settings, Plug, ArrowLeft, Bell, CalendarDays, Search, ChevronDown, Menu } from "lucide-react";
 import { Brand } from "./brand";
 import { signOut } from "@/app/auth-actions";
-import { resolveMonth } from "@/lib/finance";
+import { monthTitle, resolveMonth } from "@/lib/finance";
 
 const links = [
   ["/","סקירה",House], ["/projects","פרויקטים",Layers3], ["/expenses","הוצאות",CreditCard],
@@ -42,10 +43,7 @@ export function Shell({ initials, notifications, children }: { initials: string;
           <Search size={17} aria-hidden="true" /><input type="search" name="q" aria-label="חיפוש בהוצאות" placeholder="חיפוש בהוצאות..." defaultValue={params.get("q") ?? ""} />
           <button type="submit" className="visually-hidden">חיפוש</button>
         </form>
-        <form key={month} action={path} className="month-form">
-          <CalendarDays size={17} aria-hidden="true" /><input aria-label="בחירת חודש" name="month" type="month" defaultValue={month} required />
-          <button className="month-submit" type="submit" aria-label="הצג חודש"><ChevronDown size={15} /></button>
-        </form>
+        <MonthPicker key={month} month={month} path={path}/>
         <Link className="icon-button notification" aria-label={`התראות, ${notifications} חדשות`} href={`/settings?month=${month}#notifications`}><Bell size={19}/>{notifications > 0 && <i/>}</Link>
         <details className="disclosure user-menu"><summary className="user-control" aria-label="תפריט משתמש"><span>{initials}</span><ChevronDown size={13}/></summary>
           <div className="popover"><form action={signOut}><button className="button">יציאה</button></form></div>
@@ -54,4 +52,15 @@ export function Shell({ initials, notifications, children }: { initials: string;
       <main id="main-content" tabIndex={-1}>{children}</main>
     </div>
   </div>;
+}
+
+function MonthPicker({ path, month }: { path: string; month: string }) {
+  const [chosen, setChosen] = useState(month);
+  return <form action={path} className="month-form">
+    <label className="month-picker">
+      <CalendarDays size={17} aria-hidden="true"/><span aria-hidden="true">{monthTitle(resolveMonth(chosen))}</span>
+      <input aria-label="בחירת חודש" name="month" type="month" value={chosen} onChange={event => setChosen(event.target.value)} required />
+    </label>
+    <button className="month-submit" type="submit" aria-label="הצג חודש"><ChevronDown size={15} aria-hidden="true" /></button>
+  </form>;
 }

@@ -1,26 +1,37 @@
 # Operations
 
-## Configuration and deployment
+## Repository storage and access
 
-Apply the checked-in Supabase migrations to a dedicated Preview database and a separate Production database. In hosted Supabase disable open signups, enable TOTP, invite the owner and assign a membership; keep service keys out of interactive shells and browser sessions. Keep preview test data isolated and labeled. Verify backup retention and a restore to a disposable target before production.
+The Vercel server writes AES-256-GCM encrypted ledger snapshots and PDF files to a private Git branch using the GitHub Git Data API. The ledger and document are published together in a single non-forced ref update. Stale updates are retried against the latest state. Financial values, file names and vendor account IDs remain inside encrypted blobs. Git still exposes commit dates, ciphertext sizes and opaque document IDs to collaborators with repository access. Git history retains encrypted older versions.
 
-Set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` by environment. Preview without these variables serves a locked sign-in screen. `/api/health` measures application availability. Run authenticated smoke tests separately to verify stored finance data and storage permissions.
+Preview uses `d2r-preview-data`. Production uses `d2r-data`. Use different data keys, session keys, accounts and contents tokens across environments. The configured key must be backed up outside Git along with access to the private branch. A key change requires a controlled re-encryption procedure. Restore to an isolated branch and verify both ledger and PDF hashes before restoring operational access.
 
-The daily schedule calls `/api/sync`. Set `CRON_SECRET`, `SUPABASE_SECRET_KEY`, and `D2R_SYNC_ORG_ID` only on the intended environment. Add one row in `provider_accounts` for each approved vendor account with its matching `supplier_id`. The adapter's server credential and provider account row are both required. The current deployment contract supports one scheduled workspace. Verify the actual source account, latest run, narrowed scope and sample totals before declaring a connector live.
+1. Generate owner credentials on a trusted machine using `npx tsx scripts/create-workspace-access.ts OWNER_EMAIL /absolute/new/private/directory`.
+2. Set the three generated configuration values in the intended Vercel environment as sensitive variables. Keep the owner's password and TOTP setup key in their password manager.
+3. Set `D2R_REPO_TOKEN` as a sensitive Vercel variable. Use a fine-grained GitHub token limited to the private Cost_Managment repository and Contents read/write, with the shortest sustainable expiry. Do not store it in Git or send it in chat. The token is repository-scoped, so apply normal branch protection to code branches and keep the data-branch writer list small.
+4. Start with an empty encrypted Preview branch. Sign in using the Preview owner and verify storage, access roles, download permissions and restore. Keep vendor tokens and real finance records in Production.
+5. Maintain a Vercel security rate limit at the hosting perimeter before enabling Production. The app has per-instance attempt limits and durable one-time-code replay protection.
+
+Ledger snapshots are bounded to 670 KB compressed and 8 MB uncompressed. PDF uploads are limited to 4 MB. This is a single workspace with a low write rate. Capacity and a tested migration should be reviewed as records or collaborators grow.
+
+## Cost data sources
+
+The daily scheduler calls `/api/sync` only when `CRON_SECRET` is set. Configure a vendor account using the owner interface and supply its dedicated credentials in the intended environment. Report a source as connected only after its read scope, latest run and source totals are verified.
 
 | Source | Current path |
 | --- | --- |
-| OpenAI API | Organization Costs API adapter. Uses the official admin key endpoint. ChatGPT Plus receipts are tracked separately. |
-| Anthropic API | Organization Cost Report adapter. Uses the official admin key endpoint. It cannot read Claude Pro receipts. |
-| GitHub | Organization billing usage adapter. Imports net billable data. Supports organizations with enabled billing endpoints and qualified token access. |
-| Google Cloud / Gemini | BigQuery billing export adapter with tracked project, explicit approved SKU IDs, parameterized query and required byte cap. Requires existing billing export and permission to run jobs. Google AI Pro is separate. |
-| Claude Pro | Upload original vendor or app-store receipt and reconcile. Prefer the authenticated Claude Billing view or a verified receipt email. |
-| Vercel, Supabase, Hetzner, Gmail, Cloudflare, OpenRouter, Resend, Namecheap | Manual PDF intake and reconciliation. Automatic vendor sources are pending validation and adapter work. |
+| Vercel | Official Team Billing FOCUS JSONL endpoint. Imports billed cost in USD for the verified team. Team-level totals have no project attribution. |
+| OpenAI API | Organization Costs API. ChatGPT Plus receipts are separate. |
+| Anthropic API | Organization Cost Report in cents. Claude Pro receipts are separate. |
+| GitHub | Organization billing usage. Imports net billable usage for eligible organizations. |
+| Google Cloud / Gemini | BigQuery export with selected project and explicit SKU allowlist. Requires an existing billing export and approved read/job permissions. Enable only after approving potential query charges and setting the required scanned-byte cap. |
+| Claude Pro | Original receipt from Claude Billing or the app store via private PDF upload and reconciliation. |
+| Supabase, Hetzner, Gmail, Cloudflare, OpenRouter, Resend, Namecheap | Manual PDF intake and reconciliation are available. Automated sources await implementation or account validation. |
 
-A connector can be validated in isolation with a read-only cost retrieval against a nominated vendor account, then against authoritative vendor totals. Verify what the credential actually permits. BigQuery query jobs may incur costs; enforce the configured cap and obtain approval before enabling. No connector is reported as live from configuration alone.
+Each API cost has a stable billing key. A replay of the same version does not duplicate ledger entries. Changed provider totals retain prior provenance and are flagged if the charge has already been verified. Amount/date scope varies by vendor. Reconciliation currently matches a single charge to a single invoice and offers candidate selection from the invoice month.
 
 ## Release and open scope
 
-Preview must be verified with an isolated backend and authenticated browser sessions. Get explicit production approval before enabling a live data environment or routing traffic to the domain. Use Vercel's project-specific domain configuration to retrieve the exact DNS record and report it to the owner. The owner handles Namecheap.
+The application has a health route and a locked sign-in screen when credentials are missing. Verify authenticated Preview workflows before requesting explicit Production approval. Obtain the exact DNS target from the Vercel project domain settings. The owner manages Namecheap records.
 
-This build includes manual expense intake, private PDF upload and explicit reconciliation, project drill-down, manual FX, threshold alerts, CSV reporting, usage adapter contracts, and authorization-aware views. Future-scope work includes automated Gmail intake, other supplier adapters, invoice OCR and export bundles, XLSX/PDF reports, richer budgeting and allocation UI, backup/restore evidence, and live credentials or dataset validation.
+The current scope includes manual expense and supplier intake, encrypted PDF upload and download, explicit reconciliation, project drill-down, manual FX, threshold alerts, CSV reporting, and disabled account/payment/invoice contracts. Remaining work includes automated Gmail receipt import and further supplier adapters, provider credential validation, invoice OCR, invoice bundles and XLSX/PDF report formats, multi-project allocations and richer forecasts, restore drills, and authenticated hosted Preview/Production verification.

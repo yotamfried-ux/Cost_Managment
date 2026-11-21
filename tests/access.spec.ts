@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { authConfig, totp } from "../src/lib/auth";
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
 
@@ -15,43 +15,48 @@ test("unauthenticated visits redirect, finance APIs refuse access and security h
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 });
 
-function totp(secret: string) {
-  const base32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bitString = "";
-  for (const character of secret.replace(/=+$/, "")) bitString += base32.indexOf(character).toString(2).padStart(5, "0");
-  const buffer = Buffer.from(bitString.match(/.{8}/g)!.map(bits => parseInt(bits, 2)));
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-  const full = createHmac("sha1", buffer).update(counter).digest();
-  return String((full.readUInt32BE(full[full.length - 1] & 0xf) & 0x7fffffff) % 1_000_000).padStart(6, "0");
-}
-
 async function login(page: Page, role: "owner" | "viewer") {
   await page.goto("/sign-in");
   await page.getByLabel("דואר אלקטרוני").fill(role + "@d2r.test");
   await page.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  const account = authConfig()?.accounts.find(row => row.role === role);
+  if (!account) throw new Error("Test account unavailable");
+  await page.getByLabel("קוד אימות").fill(totp(account.totpSecret));
   await page.getByRole("button", { name: "כניסה", exact: true }).click();
-  await expect(page).toHaveURL(/\/mfa$/);
-  await page.getByRole("button", { name: "הגדרת יישום אימות" }).click();
-  const secret = page.locator(".mfa-key");
-  await expect(secret).toBeVisible();
-  await page.getByLabel("קוד בן 6 ספרות").fill(totp((await secret.innerText()).trim()));
-  await page.getByRole("button", { name: "אימות", exact: true }).click();
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
 }
 
 test("owner enters workspace, adds a real ledger entry, exports, and navigates every screen", async ({ page }, testInfo) => {
-  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated Supabase fixture");
+  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
   await login(page, "owner");
   await page.getByRole("link", { name: "הוספת הוצאה" }).click();
   await page.getByLabel("תיאור", { exact: true }).fill("בדיקת הוצאה מקומית");
   await page.getByLabel("סכום", { exact: true }).fill("123.45");
+  await page.getByRole("combobox", { name: "ספק", exact: true }).selectOption({ label: "ספק בדיקה" });
   await page.getByRole("button", { name: "שמירה", exact: true }).click();
   await expect(page.getByText("בדיקת הוצאה מקומית")).toBeVisible();
   const month = new URL(page.url()).searchParams.get("month");
   const csv = await page.request.get("/api/export?month=" + month);
   expect(csv.status()).toBe(200);
   expect(await csv.text()).toContain("בדיקת הוצאה מקומית");
+
+  await page.goto("/invoices?add=invoice&month=" + month);
+  await page.getByLabel("מספר חשבונית", { exact: true }).fill("FIX-100");
+  await page.getByRole("region", { name: "העלאת חשבונית" }).getByRole("combobox", { name: "ספק", exact: true }).selectOption({ label: "ספק בדיקה" });
+  await page.getByLabel("תאריך חשבונית").fill(month + "-01");
+  await page.getByLabel("סכום", { exact: true }).fill("123.45");
+  const pdf = Buffer.from("%PDF-1.4\nPRIVATE FIXTURE\n%%EOF");
+  await page.locator('input[type="file"]').setInputFiles({ name: "fixture.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.getByRole("button", { name: "שמירה", exact: true }).click();
+  await page.getByRole("link", { name: "FIX-100" }).click();
+  const download = await page.getByRole("link", { name: "הורדת PDF מקורי" }).getAttribute("href");
+  const file = await page.request.get(download!);
+  expect(file.status()).toBe(200);
+  expect(await file.body()).toEqual(pdf);
+  await page.getByRole("button", { name: "אישור התאמה" }).click();
+  await expect(page.getByText("השינויים נשמרו.")).toBeVisible();
+  await page.goto("/expenses?month=" + month);
+  await expect(page.getByRole("cell", { name: "מאומת", exact: true })).toBeVisible();
 
   for (const [path, heading] of [
     ["projects", "פרויקטים"], ["expenses", "הוצאות"], ["invoices", "חשבוניות"], ["suppliers", "ספקים"],
@@ -60,6 +65,9 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
     await page.goto("/" + path);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
+  await page.goto("/projects");
+  await page.getByRole("link", { name: /פרויקט בדיקה/ }).first().click();
+  await expect(page.getByRole("heading", { name: "פרויקט בדיקה" })).toBeVisible();
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
@@ -72,7 +80,7 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
 });
 
 test("isolated viewer can read the workspace and cannot start expense creation", async ({ page }) => {
-  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated Supabase fixture");
+  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
   await login(page, "viewer");
   await expect(page.getByRole("link", { name: "הוספת הוצאה" })).toHaveCount(0);
   await page.goto("/expenses?add=expense");

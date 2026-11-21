@@ -52,7 +52,11 @@ h1, h2, strong { font-weight: 740; }
 .top-search, .month-form { display: flex; align-items: center; gap: 7px; height: 37px; border: 1px solid #ddd8d3; box-shadow: 0 1px 2px #2821230b; border-radius: 11px; background: #fffaf855; padding: 0 9px; }
 .top-search input, .month-form input { min-width: 0; background: transparent; border: 0; height: 31px; }
 .top-search input { width: 170px; }
-.month-form input { width: 123px; font-weight: 600; }
+.month-picker { display: inline-flex; align-items: center; gap: 8px; position: relative; cursor: pointer; min-height: 34px; font-weight: 650; }
+.month-picker:focus-within { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 6px; }
+.month-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.month-picker input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; cursor: pointer; }
+
 .month-submit { border: 0; background: none; width: 24px; min-height: 25px; display: grid; place-items: center; }
 .disclosure { position: relative; }
 .disclosure summary { list-style: none; cursor: pointer; }
@@ -62,9 +66,10 @@ h1, h2, strong { font-weight: 740; }
 .user-control span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 100%; background: #354252; color: white; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; min-height: 30px; border-radius: 8px; }
 .icon-button:hover { background: var(--mint); }
-.notification { position: relative; order: 2; }
+.notification { position: relative; order: -2; }
 .notification i { position: absolute; background: #bb4132; top: 4px; right: 5px; width: 7px; height: 7px; border: 1px solid white; border-radius: 50%; }
-.user-menu { order: 3; }
+.user-menu { order: -3; }
+.top-search { order: -1; }
 .mobile-menu { display: none; }
 #main-content { outline: none; display: grid; gap: 14px; }
 .page-heading { display: flex; justify-content: space-between; align-items: end; min-height: 72px; gap: 16px; padding: 1px 12px 7px 6px; }
@@ -181,8 +186,10 @@ input:not([type=hidden]), select { min-height: 35px; }
   .mobile-menu { display: block; margin-inline-start: auto; order: -1; }
   .topbar { flex-wrap: wrap; gap: 8px; }
   .top-search { order: -2; flex: 1; }
+  .notification { order: 2; }
+  .user-menu { order: 3; }
   .top-search input { width: 100%; }
-  .month-form input { width: 90px; }
+  .month-picker { gap: 4px; font-size: 12px; }
   .page-heading { flex-wrap: wrap; gap: 9px; min-height: 0; padding-inline: 2px; }
   .page-heading p { margin-inline-start: 0; }
   .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
@@ -200,7 +207,7 @@ input:not([type=hidden]), select { min-height: 35px; }
   .topbar { gap: 5px; }
   .top-search, .month-form { gap: 3px; padding-inline: 4px; }
   .top-search input { font-size: 12px; }
-  .month-form input { width: 83px; }
+  .month-picker svg { width: 13px; }
   .metric { flex-direction: column; min-height: 112px; }
   .panel-heading h2 { font-size: 15px; }
   .chart-legend li { grid-template-columns: minmax(0,1.35fr) minmax(22px,1fr) 27px; }

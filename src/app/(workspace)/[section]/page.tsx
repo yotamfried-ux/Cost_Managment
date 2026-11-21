@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
-import { chargesQuery, invoices, listCharges, lookups, subscriptions, summary, type Access, type Charge, type Search } from "@/lib/queries";
-import { adapterProviders } from "@/lib/connectors";
+import { allCharges, invoices, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields } from "@/lib/queries";
+import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { Distribution, Trend } from "@/components/charts";
@@ -21,7 +21,8 @@ const pages: Record<string, (view: View) => Promise<React.ReactNode>> = {
 export default async function Section({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<Search> }) {
   const { section } = await params;
   if (!Object.hasOwn(pages, section)) notFound();
-  const [access, input] = await Promise.all([requireWorkspace(), searchParams]);
+  const [access, raw] = await Promise.all([requireWorkspace(), searchParams]);
+  const input = searchFields(raw);
   const month = resolveMonth(input.month);
   return pages[section]({ access, month, search: { ...input, month }, edit: access.role !== "viewer" });
 }
@@ -80,8 +81,8 @@ async function Invoices({ access, month, search, edit }: View) {
   });
   const item = result.selected;
   const candidates = item && edit && item.status !== "matched"
-    ? await chargesQuery(access, item.issued_on.slice(0, 7), { supplier: item.supplier_id }, 1, false).limit(100).overrideTypes<Charge[], { merge: false }>() : null;
-  const matches = candidates?.data?.filter(row => row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches) ?? [];
+    ? allCharges(access, item.issued_on.slice(0, 7), { supplier: item.supplier_id }) : [];
+  const matches = candidates.filter(row => row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches);
   return <>
     <PageTitle title="חשבוניות" description="ניהול חשבוניות, קבלות ומסמכי מקור של העסק." icon={FileText}>
       {edit && <Add path="/invoices" month={month} kind="invoice">העלאת חשבונית</Add>}
@@ -181,49 +182,47 @@ async function Reports({ access, month, search }: View) {
   </>;
 }
 
-async function Integrations({ access, month }: View) {
-  const { providerCatalog } = await import("@/lib/connectors");
-  const [accounts, runs] = await Promise.all([
-    access.db.from("provider_accounts").select("id,provider,last_synced_at").eq("organization_id", access.id),
-    access.db.from("sync_runs").select("id,provider_account_id,status,reason,observed_count,started_at,finished_at").eq("organization_id", access.id).order("started_at",{ascending:false}).limit(30),
-  ]);
-  if (accounts.error || runs.error) throw new Error("Connector status unavailable");
+async function Integrations({ access, month, search }: View) {
+  const { accounts } = access.data;
+  const runs = access.data.runs.slice(0,30);
+  const directory = lookups(access);
+  const owner = access.role === "owner";
   const statusText: Record<string, string> = { completed: "הושלם", failed: "נכשל", running: "בתהליך" };
   const reasonText: Record<string, string> = { permission: "חסרה הרשאת קריאה", vendor_request: "בקשת ספק נכשלה", storage: "שמירה נכשלה", vendor_data: "נתוני ספק לא תקינים", provider_response: "תגובה בלתי צפויה מהספק" };
-  const active = new Set(accounts.data.filter(row => runs.data.find(run => run.provider_account_id === row.id)?.status === "completed").map(row => row.provider));
+  const active = new Set(accounts.filter(row => runs.find(run => run.provider_account_id === row.id)?.status === "completed").map(row => row.provider));
   return <>
     <PageTitle title="אינטגרציות" description="מקורות חיוב, הרשאות קריאה והיסטוריית סנכרון." icon={Plug}>
       <TextLink to={href("/invoices",{ month })}>העלאת מסמכי ספק</TextLink>
+      {owner && <Add path="/integrations" month={month} kind="account">חשבון ספק חדש</Add>}
     </PageTitle>
+    <Flash search={search}/>
+    {owner && <FormPanel {...directory} path="/integrations" kind={search.add === "account" ? "account" : undefined} month={month}/>}
     <Metrics metrics={[
       { label: "מקורות חיוב", value: providerCatalog.length, detail: "קטלוג ספקים", icon: Plug },
-      { label: "חשבונות מוגדרים", value: accounts.data.length, detail: "רק בסביבת העבודה הנוכחית", icon: Building2 },
+      { label: "חשבונות מוגדרים", value: accounts.length, detail: "רק בסביבת העבודה הנוכחית", icon: Building2 },
       { label: "מקורות עם סנכרון שהושלם", value: active.size, detail: "לפי הריצה האחרונה הגלויה", icon: CircleCheck },
-      { label: "ריצות שנכשלו", value: runs.data.filter(run => run.status === "failed").length, detail: "מתוך 30 הריצות האחרונות", icon: TriangleAlert, tone: "coral" },
+      { label: "ריצות שנכשלו", value: runs.filter(run => run.status === "failed").length, detail: "מתוך 30 הריצות האחרונות", icon: TriangleAlert, tone: "coral" },
     ]}/>
     <Panel title="מקורות נתונים"><DataTable headings={["מקור","נתונים","סטטוס","סנכרון אחרון"]}>{providerCatalog.map(([key, label, scope]) => {
-      const account = accounts.data.find(row => row.provider === key);
-      const run = runs.data.find(row => row.provider_account_id === account?.id);
+      const account = accounts.find(row => row.provider === key);
+      const run = runs.find(row => row.provider_account_id === account?.id);
       const tone = run?.status === "completed" ? "good" : run?.status === "failed" ? "bad" : "neutral";
       const text = run ? statusText[run.status] : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
       return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{run ? displayDate(run.started_at) : "—"}</td></tr>;
     })}</DataTable></Panel>
     <Panel title="היסטוריית סנכרון">
-      {runs.data.length ? <DataTable headings={["תאריך","מקור","סטטוס","רשומות","פרטים"]}>{runs.data.map(run => <tr key={run.id}>
-        <td>{displayDate(run.started_at)}</td><td>{providerCatalog.find(row => row[0] === accounts.data.find(account => account.id === run.provider_account_id)?.provider)?.[1] ?? "—"}</td>
-        <td>{statusText[run.status]}</td><td>{run.observed_count}</td><td>{reasonText[run.reason] ?? "—"}</td>
+      {runs.length ? <DataTable headings={["תאריך","מקור","סטטוס","רשומות","פרטים"]}>{runs.map(run => <tr key={run.id}>
+        <td>{displayDate(run.started_at)}</td><td>{providerCatalog.find(row => row[0] === accounts.find(account => account.id === run.provider_account_id)?.provider)?.[1] ?? "—"}</td>
+        <td>{statusText[run.status]}</td><td>{run.observed_count}</td><td>{reasonText[run.reason ?? ""] ?? "—"}</td>
       </tr>)}</DataTable> : <Blank>טרם נרשמו ריצות סנכרון.</Blank>}
     </Panel>
   </>;
 }
 
 async function Settings({ access, search, month }: View) {
-  const [business, audit, alerts] = await Promise.all([
-    access.db.from("organizations").select("name,business_number,contact_email,alert_threshold_minor").eq("id",access.id).single(),
-    access.db.from("audit_log").select("id,entity,operation,created_at").eq("organization_id",access.id).order("created_at",{ascending:false}).limit(12),
-    access.db.from("notifications").select("id,code,created_at").eq("organization_id",access.id).order("created_at",{ascending:false}).limit(20),
-  ]);
-  if (business.error || audit.error || alerts.error) throw new Error("Settings unavailable");
+  const { business } = access.data;
+  const audit = access.data.audit.slice(0,12);
+  const alerts = access.data.alerts.slice(0,20);
   const owner = access.role === "owner";
   return <>
     <PageTitle title="הגדרות" description="פרטי העסק, אבטחה, הרשאות והתראות." icon={SettingsIcon}/>
@@ -231,10 +230,10 @@ async function Settings({ access, search, month }: View) {
     <div className="settings-grid">
       <Panel title="פרטי החברה וסביבת העבודה"><form className="field-stack" action={mutate.bind(null, "settings")}>
         <FormFields path="/settings" month={month}/>
-        <div className="form-grid"><label>שם העסק<input name="name" defaultValue={business.data.name} disabled={!owner} required/></label>
-          <label>ח.פ. או עוסק<input name="number" defaultValue={business.data.business_number ?? ""} disabled={!owner}/></label>
-          <label>דואר אלקטרוני עסקי<input type="email" name="email" dir="ltr" defaultValue={business.data.contact_email ?? ""} disabled={!owner}/></label>
-          <label>סף התראה להוצאה בש״ח<input name="threshold" inputMode="decimal" dir="ltr" defaultValue={business.data.alert_threshold_minor ? business.data.alert_threshold_minor / 100 : ""} disabled={!owner}/></label></div>
+        <div className="form-grid"><label>שם העסק<input name="name" defaultValue={business.name} disabled={!owner} required/></label>
+          <label>ח.פ. או עוסק<input name="number" defaultValue={business.business_number ?? ""} disabled={!owner}/></label>
+          <label>דואר אלקטרוני עסקי<input type="email" name="email" dir="ltr" defaultValue={business.contact_email ?? ""} disabled={!owner}/></label>
+          <label>סף התראה להוצאה בש״ח<input name="threshold" inputMode="decimal" dir="ltr" defaultValue={business.alert_threshold_minor ? business.alert_threshold_minor / 100 : ""} disabled={!owner}/></label></div>
         {owner && <button className="button primary">שמור שינויים</button>}
       </form></Panel>
       <Panel title="אבטחה והרשאות" action={<ShieldCheck size={20} aria-hidden="true"/>}>
@@ -250,10 +249,10 @@ async function Settings({ access, search, month }: View) {
       <Panel title="חיבורים וסנכרון"><TextLink to={href("/integrations",{month})}>ניהול אינטגרציות</TextLink><p>ריצות סנכרון ומצב הרשאות זמינים במסך האינטגרציות.</p></Panel>
     </div>
     <div id="notifications"><Panel title="התראות">
-      {alerts.data.length ? <DataTable headings={["התראה","תאריך"]}>{alerts.data.map(item => <tr key={item.id}><td>{item.code === "charge_threshold" ? "הוצאה עברה את הסף שהוגדר" : "מקור ספק שינה חיוב שכבר אומת"}</td><td>{displayDate(item.created_at)}</td></tr>)}</DataTable> : <Blank>אין התראות בסביבת העבודה.</Blank>}
+      {alerts.length ? <DataTable headings={["התראה","תאריך"]}>{alerts.map(item => <tr key={item.id}><td>{item.code === "charge_threshold" ? "הוצאה עברה את הסף שהוגדר" : "מקור ספק שינה חיוב שכבר אומת"}</td><td>{displayDate(item.created_at)}</td></tr>)}</DataTable> : <Blank>אין התראות בסביבת העבודה.</Blank>}
     </Panel></div>
     <Panel title="יומן ביקורת">
-      {audit.data.length ? <DataTable headings={["תאריך","רשומה","פעולה"]}>{audit.data.map(item => <tr key={item.id}>
+      {audit.length ? <DataTable headings={["תאריך","רשומה","פעולה"]}>{audit.map(item => <tr key={item.id}>
         <td>{displayDate(item.created_at)}</td><td><bdi>{item.entity}</bdi></td><td>{{ INSERT:"הוספה",UPDATE:"עדכון",DELETE:"מחיקה" }[item.operation as "INSERT" | "UPDATE" | "DELETE"] ?? "—"}</td>
       </tr>)}</DataTable> : <Blank>טרם נרשמו פעולות.</Blank>}
     </Panel>

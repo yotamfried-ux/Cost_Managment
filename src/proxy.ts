@@ -1,7 +1,6 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = [
     "default-src 'self'",
@@ -12,26 +11,10 @@ export async function proxy(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
   headers.set("content-security-policy", csp);
-  let response = NextResponse.next({ request: { headers } });
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY) {
-    const db = createServerClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll(updates) {
-          updates.forEach(({ name, value }) => request.cookies.set(name, value));
-          headers.set("cookie", request.cookies.toString());
-          response = NextResponse.next({ request: { headers } });
-          updates.forEach(({ name, value, options }) => response.cookies.set(name, value, { ...options, httpOnly: true, sameSite: "lax" }));
-        },
-      },
-    });
-    if (request.cookies.getAll().some(({ name }) => name.startsWith("sb-"))) await db.auth.getClaims();
-  }
+  const response = NextResponse.next({ request: { headers } });
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };

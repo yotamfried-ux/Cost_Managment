@@ -29,7 +29,7 @@ export function monthOffset(month: string, offset: number) {
 }
 
 export function resolveMonth(value?: string) {
-  return value && /^20\d{2}-(0[1-9]|1[0-2])$/.test(value) ? value : businessDate().slice(0, 7);
+  return typeof value === "string" && /^20\d{2}-(0[1-9]|1[0-2])$/.test(value) ? value : businessDate().slice(0, 7);
 }
 
 export function monthTitle(month: string) {

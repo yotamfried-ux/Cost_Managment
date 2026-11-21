@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { businessDate, minorUnits, monthOffset, resolveMonth, safeCsv } from "../src/lib/finance";
 import { PaymentsDisabled, ProviderRegistry, receiveVerifiedEvent, reconcilePayment } from "../src/lib/plugins";
+import { vercelConnector } from "../src/lib/vercel-billing";
 import { anthropicConnector, githubConnector, openAiConnector } from "../src/lib/connectors";
 
 test("Jerusalem month coverage and currency minor units", () => {
@@ -54,4 +55,14 @@ test("GitHub usage with zero net cost is not converted into gross charges", asyn
   ] }));
   const rows = await githubConnector("fixture").syncCosts({ start: "2026-11-01", end: "2026-12-01", account: "fixture" });
   assert.deepEqual(rows.map(row => row.minor), [0, 150]);
+});
+
+test("Vercel uses billed cost from the complete billing export for the requested team", async t => {
+  t.mock.method(globalThis, "fetch", async () => new Response([
+    JSON.stringify({ BilledCost: 0.125, EffectiveCost: 8, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture" }),
+    JSON.stringify({ BilledCost: "-0.025", EffectiveCost: 0, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture" }),
+  ].join("\n"), { headers: { "Content-Type": "application/jsonl" } }));
+  const rows = await vercelConnector("fixture").syncCosts({ start: "2026-11-19", end: "2026-11-20", account: "team_fixture" });
+  assert.equal(rows[0].minor, 10);
+  assert.equal(rows[0].start, "2026-11-19");
 });

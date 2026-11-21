@@ -7,5 +7,3 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 .vercel/
-supabase/.temp/
-supabase/.branches/

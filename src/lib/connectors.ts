@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { vercelConnector } from "./vercel-billing";
 import { googleBillingConfig, googleBillingConnector } from "./google-billing";
 
 export const providerCatalog = [
@@ -128,8 +129,9 @@ export function connectors() {
   if (process.env.OPENAI_ADMIN_KEY) items.set("openai", openAiConnector(process.env.OPENAI_ADMIN_KEY));
   if (process.env.ANTHROPIC_ADMIN_KEY) items.set("anthropic", anthropicConnector(process.env.ANTHROPIC_ADMIN_KEY));
   if (process.env.GITHUB_BILLING_TOKEN) items.set("github", githubConnector(process.env.GITHUB_BILLING_TOKEN));
+  if (process.env.VERCEL_BILLING_TOKEN) items.set("vercel", vercelConnector(process.env.VERCEL_BILLING_TOKEN));
   const google = googleBillingConfig();
   if (google) items.set("google-cloud", googleBillingConnector(google));
   return items;
 }
-export const adapterProviders = new Set<string>(["openai", "anthropic", "github", "google-cloud"]);
+export const adapterProviders = new Set<string>(["openai", "anthropic", "github", "google-cloud", "vercel"]);

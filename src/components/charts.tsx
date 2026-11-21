@@ -38,7 +38,7 @@ export function Trend({ rows, firstLabel, secondLabel, units = "money" }: {
     <div className="series-legend">{legend.map(item => <span key={item.label}><i style={{ background: item.color }} aria-hidden="true"/>{item.label}</span>)}</div>
     <div className="chart-wrap" dir="ltr" aria-hidden="true">
       <ResponsiveContainer width="100%" height="100%" minWidth={1}>
-        <ComposedChart data={rows} margin={{ top: 14, right: 12, bottom: 2, left: 3 }}>
+        <ComposedChart accessibilityLayer={false} data={rows} margin={{ top: 14, right: 12, bottom: 2, left: 3 }}>
           <defs><linearGradient id={id} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#26a795" stopOpacity={0.24}/><stop offset="100%" stopColor="#26a795" stopOpacity={0.015}/></linearGradient></defs>
           <CartesianGrid vertical={false} stroke="#ebe6e2"/>
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#45505a" }} tickLine={false} axisLine={false} minTickGap={12}/>

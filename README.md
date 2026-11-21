@@ -1,20 +1,18 @@
 # D2R Management
 
-מערכת פרטית לניהול הוצאות, מסמכים ו־FinOps בעברית.
+מערכת פרטית לניהול הוצאות, מסמכים ו־FinOps בעברית. האפליקציה מבוססת על תמונות העיצוב שסיפק בעל המוצר.
 
 ## Local development
 
-Use Node.js 24, Docker, and `npm ci`. Copy `.env.example` to `.env.local`, start a dedicated local Supabase stack with `npx supabase@3.2.0 start`, and set its API URL and publishable key. The migrations run when the stack starts. Set up invited accounts only and require each account to enroll its TOTP authenticator. An operator creates the organization and its first `owner` membership in that isolated database. Finance rows and private document links require both membership and MFA.
+Use Node.js 24 and `npm ci`. Run `npm run dev` for the app or `npm run build` for the production build. To use an isolated local ledger, create account credentials, set the variables from `.env.example`, and set `D2R_LOCAL_DATA_DIR` to a private writable absolute path outside the repository. This mode is available only locally. Vercel uses GitHub-backed storage.
 
-Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. For authenticated browser tests on a fresh local database, run `GITHUB_ENV=/tmp/d2r-test-env node tests/local-fixture.mjs`, then load that file into the test shell before running `npm run e2e`. Use that fixture and its test accounts only on a disposable local stack. Playwright's HTML report is written to `playwright-report/`. GitHub CI uses its own disposable database and publishes tested desktop/mobile captures.
+Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. For authenticated browser tests, set up a fresh disposable fixture with `GITHUB_ENV=/tmp/d2r-test-env npx tsx tests/local-fixture.ts`. Read those variables from the generated file into the test runner without printing them, then run `npm run e2e`. The fixture has owner and viewer accounts and keeps test data out of the Git repository. GitHub CI publishes browser reports and desktop and mobile evidence.
 
-## Data boundaries
+## Data and permissions
 
-- Estimate or missing is the starting state for hand-entered expenses. Reconciliation with an original PDF changes a matching expense to verified. Daily API totals are provider data. Counts and totals exclude unresolved FX separately from source classification.
-- Amounts retain original ISO currency and minor units. Add a dated, sourced exchange rate from the expenses screen where needed. Totals in ILS do not silently mix currencies.
-- PDF files are stored by their SHA-256 key in a private bucket. Downloads require a workspace session and generate short-lived links.
-- The approved visual references are the image attachments supplied by the product owner. Their illustrative figures do not seed finance tables.
-- Scheduled connections are off until the isolated deployment is configured. Store credentials with Vercel's environment manager. Never reuse production finance or receipt credentials in Preview.
-- The payment and invoice plugins are disabled. There is no live checkout, refund, or official invoice issuance.
+- The ledger and PDF originals are encrypted by the server before writing to the private repository. Only the separate data branches carry finance data, with independent keys for Preview and Production.
+- A finance session requires a password and TOTP. The server validates the current configured role and serves downloads only to authenticated users. Viewer accounts cannot write.
+- Manual expenses start as estimate or missing. Reconciliation with an original PDF verifies a matching expense. API results remain provider data. FX conversion uses a dated rate with a recorded source. Missing conversion rates are visible and never silently mixed into ILS totals.
+- The payment and accounting-document provider contracts remain disabled. No live checkout, refund, or official invoice issuance is available.
 
-See [operations and connector status](docs/OPERATIONS.md).
+See [operations, configuration, and remaining scope](docs/OPERATIONS.md).

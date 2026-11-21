@@ -1,13 +1,14 @@
 import { ChartNoAxesColumnIncreasing } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { monthTitle, resolveMonth } from "@/lib/finance";
-import { listCharges, lookups, subscriptions, summary, type Search } from "@/lib/queries";
+import { listCharges, lookups, subscriptions, summary, type Search, searchFields } from "@/lib/queries";
 import { Add, Charges, Flash, href, PageTitle, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { ExpenseCharts, ExpenseMetrics, ProjectList } from "@/components/views";
 import { FormPanel } from "@/components/forms";
 
 export default async function Home({ searchParams }: { searchParams: Promise<Search> }) {
-  const [access, search] = await Promise.all([requireWorkspace(), searchParams]);
+  const [access, raw] = await Promise.all([requireWorkspace(), searchParams]);
+  const search = searchFields(raw);
   const month = resolveMonth(search.month);
   const [totals, { projects, suppliers }, upcoming, recent] = await Promise.all([
     summary(access, month), lookups(access), subscriptions(access, true), listCharges(access, month, {}),

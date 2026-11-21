@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarDays, CircleCheck, Database, FileText, Folder, Layers3, Sparkles, Target } from "lucide-react";
 import { formatMoney, monthOffset, monthTitle } from "@/lib/finance";
 import { type Summary, type Project, type Search, type Subscription } from "@/lib/queries";
-import { Blank, Chip, formatAmount, href, Metrics, Panel } from "./dashboard";
+import { Blank, categoryNames, Chip, formatAmount, href, Metrics, Panel } from "./dashboard";
 import { Distribution, Trend } from "./charts";
 
 export function ExpenseMetrics({ totals, upcoming, home = false }: { totals: Summary; upcoming: Subscription[]; home?: boolean }) {
@@ -83,6 +83,7 @@ export function Filters({ path, search, projects = [], suppliers, invoice = fals
     <input type="hidden" name="month" value={search.month}/>
     <label className="filter-search"><span className="visually-hidden">חיפוש</span><input type="search" name="q" defaultValue={search.q} placeholder={invoice ? "חיפוש במסמכים..." : "חיפוש בהוצאות..."}/></label>
     {!invoice && <label><span className="visually-hidden">פרויקט</span><select name="project" defaultValue={search.project ?? ""}><option value="">כל הפרויקטים</option>{projects.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>}
+    {!invoice && <label><span className="visually-hidden">קטגוריה</span><select name="category" defaultValue={search.category ?? ""}><option value="">כל הקטגוריות</option>{categoryNames.map(name => <option key={name}>{name}</option>)}</select></label>}
     <label><span className="visually-hidden">סטטוס</span><select name="status" defaultValue={search.status ?? ""}><option value="">כל הסטטוסים</option>
       {invoice ? <><option value="matched">מותאם</option><option value="review">לבדיקה</option></> :
         <><option value="verified">מאומת</option><option value="provider">נתוני ספק</option><option value="estimate">אומדן</option><option value="missing">חסר מקור</option></>}</select></label>

@@ -1,15 +1,19 @@
+import { createHash } from "node:crypto";
 import { workspace } from "@/lib/session";
 import { isId } from "@/lib/queries";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const access = await workspace();
-  if (!access || !(access.id)) return new Response(null, { status: 401 });
+  if (!access) return new Response(null, { status: 401 });
   if (!isId(id)) return new Response(null, { status: 404 });
-
-  const { data } = await access.db.from("invoices").select("archive_object_key,original_name").eq("organization_id", access.id).eq("id", id).maybeSingle();
-  if (!data) return new Response(null, { status: 404 });
-  const { data: signed, error } = await access.db.storage.from("d2r-invoices").createSignedUrl(data.archive_object_key, 45, { download: data.original_name });
-  if (error || !signed) return new Response(null, { status: 404 });
-  return new Response(null, { status: 302, headers: { Location: signed.signedUrl, "Cache-Control": "private, no-store" } });
+  const invoice = access.data.invoices.find(row => row.id === id);
+  if (!invoice) return new Response(null, { status: 404 });
+  const bytes = await access.ledger.document(invoice.id);
+  if (!bytes || createHash("sha256").update(bytes).digest("hex") !== invoice.sha256) return new Response(null, { status: 404 });
+  const filename = encodeURIComponent(invoice.original_name.toWellFormed()).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16).toUpperCase());
+  return new Response(new Uint8Array(bytes), { headers: {
+    "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="invoice.pdf"; filename*=UTF-8''${filename}`,
+    "Cache-Control": "private, no-store", "Content-Security-Policy": "default-src 'none'; sandbox",
+  } });
 }
