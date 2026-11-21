@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   try {
     const old = await repository.read();
     phase = "gmail_payload";
-    const batch = await googleReceipts(config, old.inboxReceipts ?? []);
+    const { output: batch, counts } = await googleReceipts(config, old.inboxReceipts ?? []);
     phase = "storage_write";
     const count = await repository.transaction(data => {
       const receipts = data.inboxReceipts ?? [];
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       data.inboxReceipts = receipts;
       return { result: added.length, changed: Boolean(added.length), documents: added };
     });
-    console.info(JSON.stringify({ event: "gmail_receipt_import_completed", added: count }));
+    console.info(JSON.stringify({ event: "gmail_receipt_import_completed", added: count, counts }));
     return Response.json({ added: count });
   } catch (error) {
     const details = error instanceof GmailImportError ? { stage: error.stage, status: error.status, code: error.code } : { stage: phase };

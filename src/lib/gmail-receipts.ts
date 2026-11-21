@@ -70,7 +70,7 @@ export class GmailImportError extends Error {
   }
 }
 
-export async function googleReceipts(config: Config, previous: InboxReceipt[]): Promise<{ item: InboxReceipt; bytes: Buffer }[]> {
+export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
   const oauth = new OAuth2Client(config.clientId, config.clientSecret);
   oauth.setCredentials({ refresh_token: config.refreshToken });
   const { token } = await oauth.getAccessToken().catch(cause => { throw GmailImportError.from("oauth", cause); });
@@ -86,29 +86,38 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]): 
   const params = new URLSearchParams({ labelIds: config.label, q: query, maxResults: "20" });
   const list = messageList.parse(await api("list", "messages?" + params));
   const processed = new Set(previous.map(item => item.messageId + ":" + item.attachmentId));
+  const digests = new Set(previous.map(item => item.digest));
+  const counts = { messages: list.messages?.length ?? 0, visited: 0, skippedLabel: 0, skippedSender: 0,
+    skippedDate: 0, candidates: 0, missingLocator: 0, existing: 0, invalidPdf: 0, duplicatedContent: 0 };
   const output: { item: InboxReceipt; bytes: Buffer }[] = [];
   for (const packet of (list.messages ?? [])) {
     if (output.length >= 5) break;
+    counts.visited++;
     const row = message.parse(await api("message", "messages/" + packet.id + "?format=full"));
-    if (row.id !== packet.id || !row.labelIds.includes(config.label)) continue;
+    if (row.id !== packet.id || !row.labelIds.includes(config.label)) { counts.skippedLabel++; continue; }
     const sender = alignedSender(row.payload.headers, config.allowed);
-    if (!sender) continue;
+    if (!sender) { counts.skippedSender++; continue; }
     const parsedDate = new Date(Number(row.internalDate));
-    if (!Number.isFinite(parsedDate.getTime())) continue;
+    if (!Number.isFinite(parsedDate.getTime())) { counts.skippedDate++; continue; }
     const subject = (row.payload.headers?.find(item => item.name.toLowerCase() === "subject")?.value ?? "").slice(0,200);
     for (const pdf of pdfs(row.payload)) {
       if (output.length >= 5) break;
+      counts.candidates++;
       const locator = pdf.body?.attachmentId;
-      if (!locator || processed.has(row.id + ":" + locator)) continue;
+      if (!locator) { counts.missingLocator++; continue; }
+      if (processed.has(row.id + ":" + locator)) { counts.existing++; continue; }
       const { data } = attachment.parse(await api("attachment", `messages/${row.id}/attachments/${locator}`));
-      if (data.length > Math.ceil(pdfMaxSize * 4 / 3) + 4) continue;
+      if (data.length > Math.ceil(pdfMaxSize * 4 / 3) + 4) { counts.invalidPdf++; continue; }
       const bytes = Buffer.from(data,"base64url");
-      if (!validPdf(bytes)) continue;
+      if (!validPdf(bytes)) { counts.invalidPdf++; continue; }
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      if (digests.has(digest)) { counts.duplicatedContent++; continue; }
+      digests.add(digest);
       output.push({ bytes, item: {
         id: randomUUID(), sender, subject, receivedOn: businessDate(parsedDate), originalName: cleanFilename(pdf.filename ?? ""),
-        digest: createHash("sha256").update(bytes).digest("hex"), messageId: row.id, attachmentId: locator,
+        digest, messageId: row.id, attachmentId: locator,
       } });
     }
   }
-  return output;
+  return { output, counts };
 }
