@@ -77,3 +77,14 @@ test("Gmail receipt intake requires allowlisted sender and matching Gmail DKIM",
   assert.equal(check("evil.example; dkim=pass header.i=@vendor.test; spf=pass"), undefined);
   assert.equal(check("mx.google.com; dkim=fail header.i=@vendor.test; spf=pass"), undefined);
 });
+
+test("project allocations preserve cents, partial allocations and credits", async () => {
+  const { splitAmount } = await import("../src/lib/allocation");
+  const shares = [{ projectId: "a", basisPoints: 3333 }, { projectId: "b", basisPoints: 5000 }];
+  const positive = splitAmount(100, shares);
+  const credit = splitAmount(-101, shares);
+  assert.equal(positive.get(""), 17);
+  assert.equal([...positive.values()].reduce((a,b) => a+b,0), 100);
+  assert.equal([...credit.values()].reduce((a,b) => a+b,0), -101);
+  assert.throws(() => splitAmount(99,[{projectId:"a",basisPoints:10001}]));
+});

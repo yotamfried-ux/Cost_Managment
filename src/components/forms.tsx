@@ -6,11 +6,12 @@ import { businessDate, currencies } from "@/lib/finance";
 import type { Project, Supplier } from "@/lib/queries";
 import type { InboxReceipt } from "@/lib/repository";
 import { providerCatalog } from "@/lib/connectors";
+import { AllocationFields } from "./allocation-form";
 import { categoryNames } from "./dashboard";
 
 const titles: Record<string, string> = {
   expense: "הוספת הוצאה", project: "פרויקט חדש", invoice: "העלאת חשבונית",
-  subscription: "מנוי חדש", supplier: "ספק חדש", fx: "עדכון שער המרה", account: "חשבון ספק חדש",
+  subscription: "מנוי חדש", supplier: "ספק חדש", fx: "עדכון שער המרה", account: "חשבון ספק חדש", allocation: "חלוקת עלויות לפרויקטים",
 };
 
 export function FormFields({ path, month }: { path: string; month: string }) {
@@ -22,7 +23,7 @@ export function FormPanel({ kind, path, month, projects, suppliers, receipt, can
   candidates?: { id: string; description: string; recorded_on: string }[];
 }) {
   if (!kind || !titles[kind]) return null;
-  const canSubmit = (!(kind === "invoice" || kind === "subscription" || kind === "account") || suppliers.length > 0) && (kind !== "fx" || candidates.length > 0);
+  const canSubmit = (!(kind === "invoice" || kind === "subscription" || kind === "account") || suppliers.length > 0) && (kind !== "fx" || candidates.length > 0) && (kind !== "allocation" || (candidates.length > 0 && projects.length > 0));
   return <section className="panel content-panel inline-form" aria-labelledby="add-heading">
     <div className="panel-heading"><h2 id="add-heading">{titles[kind]}</h2><Link className="icon-button" aria-label="סגירה" href={`${path}?month=${month}`}><X size={18}/></Link></div>
     <form action={mutate.bind(null, kind)}>
@@ -62,13 +63,17 @@ export function FormPanel({ kind, path, month, projects, suppliers, receipt, can
           <SupplierPicker rows={suppliers}/><label>מקור נתונים<select name="provider">{providerCatalog.map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <label>מזהה חשבון אצל הספק<input name="external" dir="ltr" maxLength={160} required/></label>
         </>}
+        {kind === "allocation" && <>
+          <label>הוצאה<select name="charge" required>{candidates.map(row => <option key={row.id} value={row.id}>{row.description} · {row.recorded_on}</option>)}</select></label>
+          <div className="allocation-fields"><AllocationFields projects={projects}/></div>
+        </>}
         {kind === "fx" && <>
           <label>הוצאה<select name="charge" required>{candidates.map(row => <option key={row.id} value={row.id}>{row.description} · {row.recorded_on}</option>)}</select></label>
           <label>שער בש״ח ליחידת מטבע<input name="quote" dir="ltr" inputMode="decimal" required/></label>
           <label>תאריך פרסום השער<input name="quoted" type="date" required/></label><label>מקור<input name="source" required maxLength={180}/></label>
         </>}
       </div>
-      {!canSubmit && <p className="notice">{kind === "fx" ? "אין הוצאות במטבע זר בתוצאות הנוכחיות." : "תחילה יש להוסיף ספק במסך הספקים."}</p>}
+      {!canSubmit && <p className="notice">{kind === "fx" ? "אין הוצאות במטבע זר בתוצאות הנוכחיות." : kind === "allocation" ? "נדרש לפחות פרויקט אחד והוצאה אחת." : "תחילה יש להוסיף ספק במסך הספקים."}</p>}
       <button className="button primary" disabled={!canSubmit}>שמירה</button>
     </form>
   </section>;

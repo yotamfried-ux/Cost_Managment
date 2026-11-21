@@ -4,6 +4,7 @@ import { join, isAbsolute } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
+import type { Allocation } from "./allocation";
 import type { Evidence } from "./finance";
 import type { FutureFinance } from "./plugins";
 
@@ -13,7 +14,7 @@ export type Supplier = { id: string; name: string; category: string };
 export type Charge = {
   id: string; description: string; recorded_on: string; amount_minor: number | null; currency: string; evidence: Evidence;
   category: string; supplier_id: string | null; amount_ils_minor: number | null; source: string;
-  request_id: string; project_id: string | null; invoice_id: string | null;
+  request_id: string; allocations?: Allocation[]; project_id: string | null; invoice_id: string | null;
   exchange_rate?: { quote: string; date: string; source: string };
   account_id?: string; external_key?: string; billing_period_end?: string;
 };

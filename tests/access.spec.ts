@@ -69,6 +69,13 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await page.goto("/expenses?month=" + month);
   await expect(page.getByRole("cell", { name: "מאומת", exact: true })).toBeVisible();
 
+  await page.getByRole("link", { name: "חלוקת עלויות", exact: true }).click();
+  const allocation = page.getByRole("region", { name: "חלוקת עלויות לפרויקטים" });
+  await allocation.getByRole("combobox", { name: "פרויקט 1", exact: true }).selectOption({ label: "פרויקט בדיקה" });
+  await allocation.getByRole("spinbutton", { name: "אחוז לפרויקט 1" }).fill("60");
+  await allocation.getByRole("button", { name: "שמירה" }).click();
+  await expect(page.getByText("השינויים נשמרו.")).toBeVisible();
+
   for (const [path, heading] of [
     ["projects", "פרויקטים"], ["expenses", "הוצאות"], ["invoices", "חשבוניות"], ["suppliers", "ספקים"],
     ["reports", "דוחות"], ["integrations", "אינטגרציות"], ["settings", "הגדרות"],
@@ -79,6 +86,7 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await page.goto("/projects");
   await page.getByRole("link", { name: /פרויקט בדיקה/ }).first().click();
   await expect(page.getByRole("heading", { name: "פרויקט בדיקה" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /74\.07/ })).toBeVisible();
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();

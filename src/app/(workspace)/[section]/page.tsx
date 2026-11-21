@@ -35,11 +35,12 @@ async function Expenses({ access, month, search, edit }: View) {
   return <>
     <PageTitle title="הוצאות" description="מעקב אחר הוצאות העסק לפי פרויקטים, קטגוריות וספקים." icon={Database}>
       <Export search={search}/>
+      {edit && result.rows.length > 0 && directory.projects.length > 0 && <Link className="button" href={href("/expenses", search, { add: "allocation" })}>חלוקת עלויות</Link>}
       {edit && fxCandidates.length > 0 && <Link className="button" href={href("/expenses", search, { add: "fx" })}>עדכון שער המרה</Link>}
       {edit && <Add path="/expenses" month={month} kind="expense">הוצאה חדשה</Add>}
     </PageTitle>
     <Flash search={search}/>
-    {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={fxCandidates}/>}
+    {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? result.rows : fxCandidates}/>}
     <ExpenseMetrics totals={totals} upcoming={upcoming}/>
     <ExpenseCharts totals={totals} month={month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית"/>
     <Filters {...directory} path="/expenses" search={search}/>

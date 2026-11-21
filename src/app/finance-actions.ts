@@ -19,7 +19,7 @@ const currenciesSchema = z.enum(currencies);
 const allowed = new Map([
   ["expense", ["/", "/expenses"]], ["project", ["/projects"]], ["supplier", ["/suppliers"]],
   ["subscription", ["/suppliers"]], ["invoice", ["/invoices"]], ["match", ["/invoices"]],
-  ["fx", ["/expenses"]], ["settings", ["/settings"]], ["account", ["/integrations"]],
+  ["fx", ["/expenses"]], ["allocation", ["/expenses"]], ["settings", ["/settings"]], ["account", ["/integrations"]],
 ]);
 
 export async function mutate(kind: string, form: FormData) {
@@ -131,6 +131,33 @@ export async function mutate(kind: string, form: FormData) {
           applyExchangeRate(charge, item);
           audit(data, actor, "charges", "UPDATE", charge, before);
           flagCharge(data, charge);
+          break;
+        }
+        case "allocation": {
+          const id = z.uuid().parse(fields.charge);
+          const charge = data.charges.find(item => item.id === id);
+          if (!charge) throw new Error("Charge unavailable");
+          const selected = form.getAll("projectShare");
+          const amounts = form.getAll("sharePercent");
+          if (selected.length !== amounts.length || selected.length > data.projects.length) throw new Error("Invalid allocation");
+          const allocations = [];
+          const used = new Set<string>();
+          let total = 0;
+          for (let index = 0; index < selected.length; index++) {
+            if (!selected[index] && !amounts[index]) continue;
+            const projectId = z.uuid().parse(selected[index]);
+            const percent = z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).parse(amounts[index]);
+            const basisPoints = minorUnits(percent,"ILS");
+            if (!basisPoints || used.has(projectId) || !data.projects.some(item => item.id === projectId)) throw new Error("Invalid project share");
+            used.add(projectId);
+            total += basisPoints;
+            allocations.push({ projectId, basisPoints });
+          }
+          if (total > 10_000) throw new Error("Allocation exceeds charge");
+          const before = { ...charge };
+          charge.project_id = null;
+          charge.allocations = allocations;
+          audit(data, actor, "charge_allocations", "UPDATE", charge, before);
           break;
         }
         case "settings": {

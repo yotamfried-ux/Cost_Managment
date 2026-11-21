@@ -1,4 +1,5 @@
 import { businessDate, monthOffset, type Evidence } from "./finance";
+import { chargeShares, splitAmount } from "./allocation";
 import type { requireWorkspace } from "./session";
 import type { Charge as StoredCharge, Invoice as StoredInvoice, Subscription as StoredSubscription } from "./repository";
 export type { Project, Supplier } from "./repository";
@@ -14,6 +15,7 @@ export type Charge = StoredCharge & {
   suppliers: { name: string } | null;
   cost_allocations: { projects: { name: string } | null }[];
   reconciliation_matches: { invoice_id: string } | null;
+  project_share_ils?: number | null;
 };
 export type Invoice = StoredInvoice & { suppliers: { name: string } | null };
 export type Subscription = StoredSubscription & { suppliers: { name: string } | null };
@@ -45,8 +47,11 @@ export function summary({ data }: Access, month: string, project?: string, month
   const supplierNames = new Map(data.suppliers.map(row => [row.id, row.name]));
   let unallocated: number | null = null;
   for (const charge of data.charges) {
-    if (charge.recorded_on < prior || charge.recorded_on >= end || (project && charge.project_id !== project)) continue;
-    const amount = charge.amount_ils_minor;
+    if (charge.recorded_on < prior || charge.recorded_on >= end) continue;
+    const allocations = chargeShares(charge);
+    if (project && !allocations.some(row => row.projectId === project)) continue;
+    const split = charge.amount_ils_minor === null ? null : splitAmount(charge.amount_ils_minor, allocations);
+    const amount = project ? split?.get(project) ?? null : charge.amount_ils_minor;
     const actual = charge.evidence === "verified" || charge.evidence === "provider";
     if (actual && amount !== null) {
       const key = charge.recorded_on.slice(0,7);
@@ -66,8 +71,12 @@ export function summary({ data }: Access, month: string, project?: string, month
       const supplier = charge.supplier_id ? supplierNames.get(charge.supplier_id) : undefined;
       if (supplier) suppliers.set(supplier, (suppliers.get(supplier) ?? 0) + amount);
     }
-    if (charge.project_id) projects.set(charge.project_id, (projects.get(charge.project_id) ?? 0) + amount);
-    else unallocated = (unallocated ?? 0) + amount;
+    if (!project && split) {
+      for (const [id, share] of split) {
+        if (id) projects.set(id, (projects.get(id) ?? 0) + share);
+        else if (share) unallocated = (unallocated ?? 0) + share;
+      }
+    }
   }
   const rank = (items: Map<string, number>) => [...items].map(([name,total]) => ({ name,total })).sort((a,b) => b.total-a.total);
   return {
@@ -83,13 +92,14 @@ export function allCharges({ data }: Access, month: string, filters: Search, mon
   const projects = new Map(data.projects.map(row => [row.id,row.name]));
   return data.charges.filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
       row.description.toLowerCase().includes(term) && (!isId(filters.supplier) || filters.supplier === row.supplier_id) &&
-      (!isId(filters.project) || filters.project === row.project_id) && (!filters.category || filters.category === row.category) &&
+      (!isId(filters.project) || chargeShares(row).some(share => share.projectId === filters.project)) && (!filters.category || filters.category === row.category) &&
       (!filters.status || filters.status === row.evidence))
     .sort((a,b) => chronological(filters.sort)(a.recorded_on,b.recorded_on) || a.id.localeCompare(b.id))
     .map(row => ({
       ...row, suppliers: row.supplier_id ? { name: suppliers.get(row.supplier_id) ?? "" } : null,
-      cost_allocations: row.project_id ? [{ projects: { name: projects.get(row.project_id) ?? "" } }] : [],
+      cost_allocations: chargeShares(row).map(({ projectId }) => ({ projects: { name: projects.get(projectId) ?? "" } })),
       reconciliation_matches: row.invoice_id ? { invoice_id: row.invoice_id } : null,
+      project_share_ils: filters.project ? (row.amount_ils_minor === null ? null : splitAmount(row.amount_ils_minor,chargeShares(row)).get(filters.project) ?? null) : undefined,
     }));
 }
 

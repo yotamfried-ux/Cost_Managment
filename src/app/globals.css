@@ -151,6 +151,7 @@ input:not([type=hidden]), select { min-height: 35px; }
 .form-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit,minmax(min(170px,100%),1fr)); }
 .form-grid label, .field-stack label, .field-stack { display: grid; gap: 5px; }
 .field-stack { gap: 12px; align-items: start; }
+.allocation-fields { grid-column: 1 / -1; }
 .receipt-download { display: grid; gap: 5px; align-content: start; }
 .field-stack button { justify-self: start; }
 .inline-form form > .button { margin-top: 14px; }
