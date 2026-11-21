@@ -42,8 +42,14 @@ export function alignedSender(headers: Part["headers"], allowed: Config["allowed
   if (dkim.test(auth)) return account.email;
 }
 
+export function isPdfAttachment(node: Part) {
+  const supportedType = node.mimeType === "application/pdf" || node.mimeType === "application/octet-stream";
+  return Boolean(supportedType && node.filename?.toLowerCase().endsWith(".pdf") &&
+    node.body && node.body.size > 0 && node.body.size <= pdfMaxSize);
+}
+
 const pdfs = (node: Part): Part[] => {
-  if (node.mimeType === "application/pdf" && node.filename && node.body && node.body.size > 0 && node.body.size <= pdfMaxSize) return [node];
+  if (isPdfAttachment(node)) return [node];
   return (node.parts ?? []).flatMap(pdfs);
 };
 

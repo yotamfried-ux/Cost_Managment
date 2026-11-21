@@ -98,3 +98,15 @@ test("Gmail diagnostics retain known error codes and omit credential-bearing det
   assert.equal(JSON.stringify(failure).includes("private data"), false);
   assert.equal(GmailImportError.from("oauth", { response: { status: 400, data: { error: "unknown sensitive text" } } }).code, undefined);
 });
+
+test("Gmail accepts PDF-named binary attachments but verifies the actual file format", async () => {
+  const { isPdfAttachment } = await import("../src/lib/gmail-receipts");
+  const { validPdf } = await import("../src/lib/documents");
+  const file = { filename: "invoice.PDF", mimeType: "application/octet-stream", body: { size: 900, attachmentId: "fixture" } };
+  assert.equal(isPdfAttachment(file), true);
+  assert.equal(isPdfAttachment({ ...file, filename: "invoice.exe" }), false);
+  assert.equal(isPdfAttachment({ ...file, mimeType: "text/html" }), false);
+  assert.equal(isPdfAttachment({ ...file, body: { size: 5 * 1024 * 1024 } }), false);
+  assert.equal(validPdf(Buffer.from("<html>not a PDF</html>")), false);
+  assert.equal(validPdf(Buffer.from("%PDF-1.5\nfixture\n%%EOF")), true);
+});
