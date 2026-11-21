@@ -23,7 +23,7 @@ export function authConfig() {
   try {
     const accounts = z.array(accountSchema).max(20).parse(accountsJson ? JSON.parse(accountsJson) : []);
     if (accounts.some(account => account.email === sharedEmail) || new Set(accounts.map(account => account.email)).size !== accounts.length) return undefined;
-    const hash = hashSchema.safeParse(process.env.D2R_SHARED_PASSWORD_HASH);
+    const hash = hashSchema.safeParse(process.env.D2R_DISABLE_SHARED_LOGIN === "true" ? undefined : process.env.D2R_SHARED_PASSWORD_HASH);
     const shared: SessionAccount | undefined = hash.success ? { email: sharedEmail, role: "viewer", passwordHash: hash.data } : undefined;
     if (!accounts.length && !shared) return undefined;
     return { key: Buffer.from(sessionSecret, "base64url"), accounts, shared };

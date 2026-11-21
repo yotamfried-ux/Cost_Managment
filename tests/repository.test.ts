@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import { encodeBase32, issueSession, passwordHash, readSession, totp, verifyPassword, verifyTotp } from "../src/lib/auth";
+import { authConfig, encodeBase32, issueSession, passwordHash, readSession, totp, verifyPassword, verifyTotp } from "../src/lib/auth";
 import { applyExchangeRate, assertWriter, ingestCost, matchInvoice } from "../src/lib/ledger";
 import { storedWebhookInbox } from "../src/lib/plugins";
 import { LedgerRepository, type Charge } from "../src/lib/repository";
@@ -139,4 +139,27 @@ test("Git storage uses non-forced ref updates and encrypts both blobs", async t 
   });
   assert.equal((await store.read()).business.name,"private test business");
   assert.equal(calls.filter(path => path.startsWith("PATCH")).length,2);
+});
+
+test("the shared login kill switch revokes existing shared cookies without disabling MFA accounts", async t => {
+  const key = randomBytes(32).toString("base64url");
+  const password = await passwordHash("fixture-shared-password");
+  const owner = { email: "owner@d2r.test", role: "owner" as const, passwordHash: password, totpSecret: encodeBase32(randomBytes(20)) };
+  const env = { D2R_SESSION_SECRET: key, D2R_AUTH_ACCOUNTS: JSON.stringify([owner]), D2R_SHARED_PASSWORD_HASH: password, D2R_DISABLE_SHARED_LOGIN: "false" };
+  const previous = Object.fromEntries(Object.keys(env).map(name => [name,process.env[name]]));
+  t.after(() => {
+    for (const [name,value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  });
+  Object.assign(process.env,env);
+  const enabled = authConfig()!;
+  const sharedCookie = issueSession(enabled.key,enabled.shared!);
+  const ownerCookie = issueSession(enabled.key,owner);
+  assert.equal(readSession(enabled.key,[...enabled.accounts,enabled.shared!],sharedCookie)?.role,"viewer");
+  process.env.D2R_DISABLE_SHARED_LOGIN = "true";
+  const disabled = authConfig()!;
+  assert.equal(disabled.shared,undefined);
+  assert.equal(readSession(disabled.key,disabled.accounts,sharedCookie),undefined);
+  assert.equal(readSession(disabled.key,disabled.accounts,ownerCookie)?.role,"owner");
 });
