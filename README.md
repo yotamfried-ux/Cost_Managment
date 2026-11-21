@@ -1,23 +1,20 @@
 # D2R Management
 
-**Repository:** \`Cost_Managment\` · **Product UI name:** **D2R Management**.
+מערכת פרטית לניהול הוצאות, מסמכים ו־FinOps בעברית.
 
-Private, Hebrew RTL Finance OS for software projects and a future Israeli business. Tracks provider bills, API use, invoices/receipts, recurring charges, project cost allocation and later revenue and customer management.
+## Local development
 
-**Status:** design/specification phase; **no application code built or deployed yet**.
+Use Node.js 24, Docker, and `npm ci`. Copy `.env.example` to `.env.local`, start a dedicated local Supabase stack with `npx supabase@3.2.0 start`, and set its API URL and publishable key. The migrations run when the stack starts. Set up invited accounts only and require each account to enroll its TOTP authenticator. An operator creates the organization and its first `owner` membership in that isolated database. Finance rows and private document links require both membership and MFA.
 
-## Documents
-- [Product requirements & accepted decisions](docs/PRODUCT-SPEC.md)
-- [Approved visual design contract](docs/DESIGN-SYSTEM.md)
-- [Connector, payment plugin and deployment architecture](docs/INTEGRATIONS-ARCHITECTURE.md)
-- [Codex build & Vercel deployment prompt](docs/CODEX-BUILD-PROMPT.md)
-- [Design asset index and provenance](design/README.md)
+Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. For authenticated browser tests on a fresh local database, run `GITHUB_ENV=/tmp/d2r-test-env node tests/local-fixture.mjs`, then load that file into the test shell before running `npm run e2e`. Use that fixture and its test accounts only on a disposable local stack. Playwright's HTML report is written to `playwright-report/`. GitHub CI uses its own disposable database and publishes tested desktop/mobile captures.
 
-## Selected visual direction
-The owner-approved **"ניהול העסק" screenshot** supplied 21 Nov 2026 is the visual source of truth; do not replace it with unrelated concept art. Subpages must use the same ivory/teal/coral styling, right sidebar, white rounded cards, data density, and chart grammar. Product displayed name is D2R Management even when the screenshot still displays old repo name.
+## Data boundaries
 
-## Planned deployment
-Vercel new project linked to this exact existing repository, future hostname \`finance.d2ryf.com\`, DNS target to be retrieved from Vercel **after** project creation. No deployment or production access currently claimed.
+- Estimate or missing is the starting state for hand-entered expenses. Reconciliation with an original PDF changes a matching expense to verified. Daily API totals are provider data. Counts and totals exclude unresolved FX separately from source classification.
+- Amounts retain original ISO currency and minor units. Add a dated, sourced exchange rate from the expenses screen where needed. Totals in ILS do not silently mix currencies.
+- PDF files are stored by their SHA-256 key in a private bucket. Downloads require a workspace session and generate short-lived links.
+- The approved visual references are the image attachments supplied by the product owner. Their illustrative figures do not seed finance tables.
+- Scheduled connections are off until the isolated deployment is configured. Store credentials with Vercel's environment manager. Never reuse production finance or receipt credentials in Preview.
+- The payment and invoice plugins are disabled. There is no live checkout, refund, or official invoice issuance.
 
-## Finance safety
-No billing or invoice numbers in generated mockup screens should be mistaken for actual money. Claude Pro amount and Gemini API spend require actual verification. Payment & invoicing provider remains to be selected; modular adapters only.
+See [operations and connector status](docs/OPERATIONS.md).
