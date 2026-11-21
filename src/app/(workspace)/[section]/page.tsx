@@ -67,6 +67,8 @@ async function Projects({ access, month, search, edit }: View) {
 
 async function Invoices({ access, month, search, edit }: View) {
   const [directory, result] = await Promise.all([lookups(access), invoices(access, month, search)]);
+  const staged = (access.data.inboxReceipts ?? []).filter(receipt => !access.data.invoices.some(item => item.id === receipt.id));
+  const receipt = staged.find(item => item.id === search.receipt);
   const current = result.history.filter(row => row.issued_on.startsWith(month));
   const matched = current.filter(row => row.status === "matched").length;
   const bySupplier = new Map<string, number>();
@@ -88,7 +90,7 @@ async function Invoices({ access, month, search, edit }: View) {
       {edit && <Add path="/invoices" month={month} kind="invoice">העלאת חשבונית</Add>}
     </PageTitle>
     <Flash search={search}/>
-    {edit && <FormPanel {...directory} path="/invoices" kind={search.add === "invoice" ? "invoice" : undefined} month={month}/>}
+    {edit && <FormPanel {...directory} path="/invoices" kind={search.add === "invoice" ? "invoice" : undefined} month={month} receipt={receipt}/>}
     <Metrics metrics={[
       { label: "מסמכים שהתקבלו", value: current.length, detail: monthTitle(month), icon: FileText, tone: "coral" },
       { label: "חשבוניות מותאמות", value: matched, detail: "מסמכים שמקושרים להוצאה", icon: CircleCheck },
@@ -101,6 +103,13 @@ async function Invoices({ access, month, search, edit }: View) {
         <Trend rows={history} firstLabel="מותאמות" secondLabel="ממתינות" units="number"/>
       </Panel>
     </div>
+    {staged.length > 0 && <Panel title="מסמכים מ־Gmail הממתינים לבדיקה">
+      <DataTable headings={["תאריך קליטה","שולח","מסמך","תיוק"]}>{staged.map(row => <tr key={row.id}>
+        <td>{displayDate(row.receivedOn)}</td><td><bdi>{row.sender}</bdi></td>
+        <td><a className="text-link" href={`/api/documents/${row.id}`}>{row.originalName}</a></td>
+        <td>{edit ? <TextLink to={href("/invoices", { month }, { add:"invoice", receipt:row.id })}>בדיקה ותיוק</TextLink> : "ממתין לעורך"}</td>
+      </tr>)}</DataTable>
+    </Panel>}
     <Filters path="/invoices" search={search} suppliers={directory.suppliers} invoice/>
     <div className={item ? "with-drawer" : undefined}>
       <Panel title={`מסמכי חשבוניות (${result.count})`}>
@@ -207,8 +216,9 @@ async function Integrations({ access, month, search }: View) {
       const account = accounts.find(row => row.provider === key);
       const run = runs.find(row => row.provider_account_id === account?.id);
       const tone = run?.status === "completed" ? "good" : run?.status === "failed" ? "bad" : "neutral";
-      const text = run ? statusText[run.status] : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
-      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{run ? displayDate(run.started_at) : "—"}</td></tr>;
+      const received = key === "gmail" ? access.data.inboxReceipts?.[0] : undefined;
+      const text = received ? "מסמכים נקלטו" : run ? statusText[run.status] : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
+      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{received ? displayDate(received.receivedOn) : run ? displayDate(run.started_at) : "—"}</td></tr>;
     })}</DataTable></Panel>
     <Panel title="היסטוריית סנכרון">
       {runs.length ? <DataTable headings={["תאריך","מקור","סטטוס","רשומות","פרטים"]}>{runs.map(run => <tr key={run.id}>

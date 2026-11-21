@@ -66,3 +66,14 @@ test("Vercel uses billed cost from the complete billing export for the requested
   assert.equal(rows[0].minor, 10);
   assert.equal(rows[0].start, "2026-11-19");
 });
+
+test("Gmail receipt intake requires allowlisted sender and matching Gmail DKIM", async () => {
+  const { alignedSender } = await import("../src/lib/gmail-receipts");
+  const senders = [{ email: "receipts@vendor.test", dkim: "vendor.test" }];
+  const from = { name: "From", value: "Vendor Receipts <receipts@vendor.test>" };
+  const check = (value: string) => alignedSender([from,{name:"Authentication-Results",value}],senders);
+  assert.equal(check("mx.google.com; dkim=pass header.i=@vendor.test header.s=mail; spf=pass"), "receipts@vendor.test");
+  assert.equal(check("mx.google.com; dkim=pass header.i=@vendor.test.bad; spf=pass"), undefined);
+  assert.equal(check("evil.example; dkim=pass header.i=@vendor.test; spf=pass"), undefined);
+  assert.equal(check("mx.google.com; dkim=fail header.i=@vendor.test; spf=pass"), undefined);
+});

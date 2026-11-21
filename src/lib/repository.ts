@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
 import type { Evidence } from "./finance";
+import type { FutureFinance } from "./plugins";
 
 export type Role = "owner" | "editor" | "viewer";
 export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null };
@@ -25,6 +26,10 @@ export type Account = { id: string; provider: string; external_account_id: strin
 export type Run = { id: string; provider_account_id: string; status: "running" | "completed" | "failed"; reason: string | null; observed_count: number; started_at: string; finished_at: string | null };
 export type Audit = { id: string; entity: string; operation: "INSERT" | "UPDATE"; created_at: string; actor: string; before?: unknown; after?: unknown };
 export type Alert = { id: string; code: "charge_threshold" | "verified_source_changed"; reference: string; created_at: string };
+export type InboxReceipt = {
+  id: string; sender: string; subject: string; receivedOn: string; originalName: string; digest: string;
+  messageId: string; attachmentId: string;
+};
 export type WorkspaceData = {
   version: 1;
   business: { name: string; business_number: string | null; contact_email: string | null; alert_threshold_minor: number | null };
@@ -32,6 +37,8 @@ export type WorkspaceData = {
   accounts: Account[]; runs: Run[]; alerts: Alert[]; audit: Audit[];
   costEvents: { account: string; key: string; digest: string; observedAt: string; payload: unknown }[];
   lastTotp: Record<string, number>;
+  futureFinance?: FutureFinance;
+  inboxReceipts?: InboxReceipt[];
 };
 
 export function emptyData(): WorkspaceData {
@@ -100,9 +107,9 @@ function documentPath(id: string) { return `documents/${uuid.parse(id)}.enc`; }
 class GithubRepository {
   constructor(private readonly token: string, private readonly branch = productionBranch) {}
 
-  async api(path: string, method = "GET", body?: object) {
+  async api(path: string, method = "GET", body?: object, accept = "application/vnd.github+json") {
     const response = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
-      method, headers: { Authorization: `Bearer ${this.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      method, headers: { Authorization: `Bearer ${this.token}`, Accept: accept, "X-GitHub-Api-Version": "2022-11-28", ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10000),
     });
     return response;
@@ -113,7 +120,7 @@ class GithubRepository {
     return present.parse((await response.json()).object).sha;
   }
   async readFile(path: string, ref: string, limit: number) {
-    const response = await this.api(`contents/${path}?ref=${ref}`);
+    const response = await this.api(`contents/${path}?ref=${ref}`, "GET", undefined, "application/vnd.github.object+json");
     if (response.status === 404) return null;
     if (!response.ok) throw new Error("Repository read failed");
     const item = z.object({ sha, encoding: z.string(), size: z.number().nonnegative(), content: z.string() }).parse(await response.json());
@@ -149,7 +156,7 @@ class GithubRepository {
   }
 }
 
-export type Mutation<T> = { result: T; changed?: boolean; document?: { id: string; bytes: Buffer } };
+export type Mutation<T> = { result: T; changed?: boolean; document?: { id: string; bytes: Buffer }; documents?: { id: string; bytes: Buffer }[] };
 export class LedgerRepository {
   constructor(private readonly config: Config) {}
 
@@ -181,9 +188,9 @@ export class LedgerRepository {
           const mutation = callback(data);
           if (mutation.changed !== false) {
             const sealed = encodeState(config.key, data);
-            if (mutation.document) {
-              const path = documentPath(mutation.document.id);
-              await writeFile(join(root, path), encrypt(config.key, path, mutation.document.bytes), { mode: 0o600 });
+            for (const document of mutation.documents ?? (mutation.document ? [mutation.document] : [])) {
+              const path = documentPath(document.id);
+              await writeFile(join(root, path), encrypt(config.key, path, document.bytes), { mode: 0o600 });
             }
             await writeFile(join(root, snapshotPath + ".next"), sealed, { mode: 0o600 });
             await rename(join(root, snapshotPath + ".next"), join(root, snapshotPath));
@@ -204,9 +211,9 @@ export class LedgerRepository {
       const mutation = callback(data);
       if (mutation.changed === false) return mutation.result;
       const entries = [{ path: snapshotPath, content: encodeState(config.key, data) }];
-      if (mutation.document) {
-        const path = documentPath(mutation.document.id);
-        entries.push({ path, content: encrypt(config.key, path, mutation.document.bytes) });
+      for (const document of mutation.documents ?? (mutation.document ? [mutation.document] : [])) {
+        const path = documentPath(document.id);
+        entries.push({ path, content: encrypt(config.key, path, document.bytes) });
       }
       if (await api.write(head, entries)) return mutation.result;
       await delay(30 * (attempt + 1));

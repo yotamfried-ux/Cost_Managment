@@ -26,7 +26,10 @@ The daily scheduler calls `/api/sync` only when `CRON_SECRET` is set. Configure 
 | GitHub | Organization billing usage. Imports net billable usage for eligible organizations. |
 | Google Cloud / Gemini | BigQuery export with selected project and explicit SKU allowlist. Requires an existing billing export and approved read/job permissions. Enable only after approving potential query charges and setting the required scanned-byte cap. |
 | Claude Pro | Original receipt from Claude Billing or the app store via private PDF upload and reconciliation. |
-| Supabase, Hetzner, Gmail, Cloudflare, OpenRouter, Resend, Namecheap | Manual PDF intake and reconciliation are available. Automated sources await implementation or account validation. |
+| Gmail | Optional private receipt staging from a dedicated label, allowlisted senders and aligned DKIM. A reviewer must confirm supplier, invoice number, date and amount before reconciliation. |
+| Supabase, Hetzner, Cloudflare, OpenRouter, Resend, Namecheap | Manual PDF intake and reconciliation are available. Automated sources await implementation or account validation. |
+
+For Gmail, authorize a read-only OAuth token against the intended mailbox. Configure the dedicated label ID (e.g. the Gmail API `Label_...` identifier) and JSON entries with exact `email` and `dkim` values for known senders. The scheduler scans recent matching PDF attachments in that label and stages the original encrypted bytes. Gmail receipts do not become ledger charges automatically.
 
 Each API cost has a stable billing key. A replay of the same version does not duplicate ledger entries. Changed provider totals retain prior provenance and are flagged if the charge has already been verified. Amount/date scope varies by vendor. Reconciliation currently matches a single charge to a single invoice and offers candidate selection from the invoice month.
 
@@ -34,4 +37,4 @@ Each API cost has a stable billing key. A replay of the same version does not du
 
 The application has a health route and a locked sign-in screen when credentials are missing. Verify authenticated Preview workflows before requesting explicit Production approval. Obtain the exact DNS target from the Vercel project domain settings. The owner manages Namecheap records.
 
-The current scope includes manual expense and supplier intake, encrypted PDF upload and download, explicit reconciliation, project drill-down, manual FX, threshold alerts, CSV reporting, and disabled account/payment/invoice contracts. Remaining work includes automated Gmail receipt import and further supplier adapters, provider credential validation, invoice OCR, invoice bundles and XLSX/PDF report formats, multi-project allocations and richer forecasts, restore drills, and authenticated hosted Preview/Production verification.
+The current scope includes manual expense and supplier intake, encrypted PDF upload and download, explicit reconciliation, project drill-down, manual FX, threshold alerts, CSV reporting, and disabled account/payment/invoice contracts. Remaining work includes further supplier adapters and live Gmail receipt validation, provider credential validation, invoice OCR, invoice bundles and XLSX/PDF report formats, multi-project allocations and richer forecasts, restore drills, and authenticated hosted Preview/Production verification.

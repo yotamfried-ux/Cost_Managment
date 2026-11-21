@@ -1,3 +1,5 @@
+import type { LedgerRepository } from "./repository";
+
 export interface Money {
   minor: number;
   currency: string;
@@ -74,4 +76,31 @@ export async function receiveVerifiedEvent(
 export function reconcilePayment(expected: Money, settled?: Money) {
   if (!settled) return "UNMATCHED";
   return expected.minor === settled.minor && expected.currency === settled.currency ? "MATCHED" : "REVIEW_REQUIRED";
+}
+
+export interface FutureFinance {
+  features: { customers: boolean; products: boolean; revenue: boolean; payments: boolean };
+  customers: { id: string; displayName: string; createdAt: string }[];
+  products: { id: string; name: string; active: boolean }[];
+  revenue: { id: string; customerId: string; productId?: string; money: Money; settledAt?: string }[];
+  inbox: { key: string; receivedAt: string; event: ProviderEvent }[];
+}
+
+export function emptyFutureFinance(): FutureFinance {
+  return { features: { customers: false, products: false, revenue: false, payments: false }, customers: [], products: [], revenue: [], inbox: [] };
+}
+
+export function storedWebhookInbox(ledger: LedgerRepository): WebhookInbox {
+  return {
+    enqueueOnce(scope, event) {
+      const key = JSON.stringify([scope.organizationId, scope.kind, scope.providerId, event.id]);
+      return ledger.transaction(data => {
+        const future = data.futureFinance ?? emptyFutureFinance();
+        if (future.inbox.some(item => item.key === key)) return { result: false, changed: false };
+        future.inbox.push({ key, receivedAt: new Date().toISOString(), event });
+        data.futureFinance = future;
+        return { result: true };
+      });
+    },
+  };
 }

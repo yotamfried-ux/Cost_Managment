@@ -4,9 +4,9 @@ import type { Charge as StoredCharge, Invoice as StoredInvoice, Subscription as 
 export type { Project, Supplier } from "./repository";
 
 export type Access = Awaited<ReturnType<typeof requireWorkspace>>;
-export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; add?: string; period?: string };
+export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; receipt?: string; add?: string; period?: string };
 export function searchFields(input: Search): Search {
-  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","add","period"];
+  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","receipt","add","period"];
   return Object.fromEntries(supported.filter(key => typeof input[key] === "string").map(key => [key, input[key]?.slice(0,240)]));
 }
 

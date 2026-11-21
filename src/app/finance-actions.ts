@@ -8,6 +8,7 @@ import { requireWorkspace } from "@/lib/session";
 import { currencies, minorUnits, resolveMonth } from "@/lib/finance";
 import { applyExchangeRate, audit, flagCharge, matchInvoice } from "@/lib/ledger";
 import { providerCatalog } from "@/lib/connectors";
+import { cleanFilename, pdfMaxSize, validPdf } from "@/lib/documents";
 import type { Charge, Invoice } from "@/lib/repository";
 
 const required = (length: number) => z.string().trim().min(1).max(length);
@@ -31,19 +32,23 @@ export async function mutate(kind: string, form: FormData) {
 
   try {
     let document: { id: string; bytes: Buffer } | undefined;
-    let invoiceInput: Omit<Invoice, "status"> | undefined;
+    let invoiceInput: {
+      supplier: string; number: string; issued: string; currency: string; minor: number;
+      receipt: string | null; name?: string; digest?: string;
+    } | undefined;
     if (kind === "invoice") {
-      const input = z.object({ supplier: z.uuid(), number: required(100), amount: money, currency: currenciesSchema, issued: date, file: z.instanceof(File) }).parse(fields);
-      if (input.file.size < 8 || input.file.size > 4 * 1024 * 1024 || input.file.type !== "application/pdf") throw new Error("Invalid PDF");
-      const bytes = Buffer.from(await input.file.arrayBuffer());
-      if (bytes.subarray(0,5).toString() !== "%PDF-" || !bytes.subarray(-1024).includes("%%EOF")) throw new Error("Invalid PDF");
-      const id = randomUUID();
-      document = { id, bytes };
-      invoiceInput = {
-        id, supplier_id: input.supplier, invoice_number: input.number, issued_on: input.issued, currency: input.currency,
-        amount_minor: minorUnits(input.amount, input.currency), sha256: createHash("sha256").update(bytes).digest("hex"),
-        original_name: (input.file.name.split(/[\\/]/).pop() || "invoice.pdf").replace(/[\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 180) || "invoice.pdf",
-      };
+      const input = z.object({ supplier: z.uuid(), number: required(100), amount: money, currency: currenciesSchema,
+        issued: date, receipt: optionalId }).parse(fields);
+      invoiceInput = { ...input, minor: minorUnits(input.amount, input.currency) };
+      if (!input.receipt) {
+        const file = z.instanceof(File).parse(fields.file);
+        if (file.size < 8 || file.size > pdfMaxSize || file.type !== "application/pdf") throw new Error("Invalid PDF");
+        const bytes = Buffer.from(await file.arrayBuffer());
+        if (!validPdf(bytes)) throw new Error("Invalid PDF");
+        document = { id: randomUUID(), bytes };
+        invoiceInput.name = cleanFilename(file.name);
+        invoiceInput.digest = createHash("sha256").update(bytes).digest("hex");
+      }
     }
     await ledger.transaction(data => {
       const requireSupplier = (id: string | null) => {
@@ -96,12 +101,20 @@ export async function mutate(kind: string, form: FormData) {
           break;
         }
         case "invoice": {
-          if (!invoiceInput || !document) throw new Error("Invalid PDF");
+          if (!invoiceInput) throw new Error("Invalid PDF");
           const item = invoiceInput;
-          requireSupplier(item.supplier_id);
-          if (data.invoices.some(row => row.sha256 === item.sha256)) return { result: null, changed: false };
-          if (data.invoices.some(row => row.supplier_id === item.supplier_id && row.invoice_number === item.invoice_number)) throw new Error("Invoice number exists");
-          const invoice: Invoice = { ...item, status: "review" };
+          requireSupplier(item.supplier);
+          const inbox = data.inboxReceipts ?? [];
+          const receipt = item.receipt ? inbox.find(row => row.id === item.receipt) : undefined;
+          const id = receipt?.id ?? document?.id;
+          const sha256 = receipt?.digest ?? item.digest;
+          const original_name = receipt?.originalName ?? item.name;
+          if (!id || !sha256 || !original_name) throw new Error("Document unavailable");
+          if (data.invoices.some(row => row.sha256 === sha256)) return { result: null, changed: false };
+          if (!receipt && inbox.some(row => row.digest === sha256)) throw new Error("Document exists in inbox");
+          if (data.invoices.some(row => row.supplier_id === item.supplier && row.invoice_number === item.number)) throw new Error("Invoice number exists");
+          const invoice: Invoice = { id, supplier_id: item.supplier, invoice_number: item.number, issued_on: item.issued,
+            currency: item.currency, amount_minor: item.minor, status: "review", sha256, original_name };
           data.invoices.unshift(invoice);
           audit(data, actor, "invoices", "INSERT", invoice);
           break;

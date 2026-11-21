@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { mutate } from "@/app/finance-actions";
 import { businessDate, currencies } from "@/lib/finance";
 import type { Project, Supplier } from "@/lib/queries";
+import type { InboxReceipt } from "@/lib/repository";
 import { providerCatalog } from "@/lib/connectors";
 import { categoryNames } from "./dashboard";
 
@@ -15,8 +16,9 @@ const titles: Record<string, string> = {
 export function FormFields({ path, month }: { path: string; month: string }) {
   return <><input type="hidden" name="return" value={path}/><input type="hidden" name="month" value={month}/></>;
 }
-export function FormPanel({ kind, path, month, projects, suppliers, candidates = [] }: {
+export function FormPanel({ kind, path, month, projects, suppliers, receipt, candidates = [] }: {
   kind?: string; path: string; month: string; projects: Project[]; suppliers: Supplier[];
+  receipt?: InboxReceipt;
   candidates?: { id: string; description: string; recorded_on: string }[];
 }) {
   if (!kind || !titles[kind]) return null;
@@ -50,7 +52,10 @@ export function FormPanel({ kind, path, month, projects, suppliers, candidates =
         {kind === "invoice" && <>
           <SupplierPicker rows={suppliers}/><label>מספר חשבונית<input name="number" required maxLength={100}/></label>
           <label>תאריך חשבונית<input type="date" name="issued" required/></label>
-          <label>קובץ PDF עד 4 MB<input type="file" name="file" accept="application/pdf" required/></label>
+          {receipt ? <>
+            <input type="hidden" name="receipt" value={receipt.id}/>
+            <div className="receipt-download"><span>מסמך מקור</span><a className="button" href={`/api/documents/${receipt.id}`}>הורדת PDF מהתיבה</a></div>
+          </> : <label>קובץ PDF עד 4 MB<input type="file" name="file" accept="application/pdf" required/></label>}
           <MoneyFields required/>
         </>}
         {kind === "account" && <>

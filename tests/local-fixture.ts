@@ -1,8 +1,9 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { encodeBase32, passwordHash } from "../src/lib/auth";
+import { businessDate } from "../src/lib/finance";
 import { LedgerRepository } from "../src/lib/repository";
 
 if (!process.env.GITHUB_ENV || process.env.VERCEL) throw new Error("Fixture requires a local environment file");
@@ -18,7 +19,11 @@ await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(da
   data.business.name = "סביבת בדיקה מבודדת";
   data.projects.push({ id: randomUUID(), name: "פרויקט בדיקה", description: "פרויקט מקומי לבדיקות", status: "active", monthly_budget_minor: 900000 });
   data.suppliers.push({ id: randomUUID(), name: "ספק בדיקה", category: "כלים עסקיים" });
-  return { result: true };
+  const bytes = Buffer.from("%PDF-1.4\nGMAIL FIXTURE\n%%EOF");
+  const id = randomUUID();
+  data.inboxReceipts = [{ id, sender: "receipt@fixture.test", subject: "Receipt", receivedOn: businessDate(),
+    originalName: "gmail-fixture.pdf", digest: createHash("sha256").update(bytes).digest("hex"), messageId: "a", attachmentId: "a" }];
+  return { result: true, document: { id, bytes } };
 });
 if (process.env.GITHUB_ACTIONS) {
   for (const secret of [password, dataKey.toString("base64url"), sessionKey, ...accounts.map(row => row.totpSecret)]) console.log("::add-mask::" + secret);

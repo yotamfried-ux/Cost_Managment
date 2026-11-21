@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": { "deploymentEnabled": { "main": false, "d2r-data": false, "d2r-preview-data": false } },
-  "crons": [{"path": "/api/sync", "schedule": "35 3 * * *"}]
+  "crons": [{"path": "/api/sync", "schedule": "35 3 * * *"}, {"path": "/api/sync/receipts", "schedule": "50 3 * * *"}]
 }

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { encodeBase32, issueSession, passwordHash, readSession, totp, verifyPassword, verifyTotp } from "../src/lib/auth";
 import { applyExchangeRate, assertWriter, ingestCost, matchInvoice } from "../src/lib/ledger";
+import { storedWebhookInbox } from "../src/lib/plugins";
 import { LedgerRepository, type Charge } from "../src/lib/repository";
 
 test("signed MFA sessions reject invalid passwords, changed permissions, tampering and expiry", async () => {
@@ -70,6 +71,11 @@ test("encrypted repository persists concurrent mutations and documents, rejects 
     assert.equal(ingestCost(data, account.id, { ...event, minor: 110 }), true);
     return { result: null };
   });
+  const inbox = storedWebhookInbox(repository);
+  const scope = { organizationId: "fixture", kind: "invoice" as const, providerId: "adapter" };
+  const event = { id: "invoice-event", resourceId: invoiceId, type: "fixture", occurredAt: "2026-11-20T10:00:00Z" };
+  const queued = await Promise.all([inbox.enqueueOnce(scope, event),inbox.enqueueOnce(scope, event)]);
+  assert.deepEqual(queued.sort(), [false,true]);
   const data = await repository.read();
   assert.equal(data.charges.length, 2);
   assert.equal(data.charges[0].amount_minor, 110);

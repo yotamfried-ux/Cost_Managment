@@ -55,6 +55,17 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   expect(await file.body()).toEqual(pdf);
   await page.getByRole("button", { name: "אישור התאמה" }).click();
   await expect(page.getByText("השינויים נשמרו.")).toBeVisible();
+  await page.goto("/invoices?month=" + month);
+  await page.getByRole("link", { name: "בדיקה ותיוק" }).click();
+  const booking = page.getByRole("region", { name: "העלאת חשבונית" });
+  await expect(booking.getByRole("link", { name: "הורדת PDF מהתיבה" })).toBeVisible();
+  await booking.getByLabel("מספר חשבונית").fill("GMAIL-TEST-2");
+  await booking.getByRole("combobox", { name: "ספק" }).selectOption({ label: "ספק בדיקה" });
+  await booking.getByLabel("תאריך חשבונית").fill(month + "-01");
+  await booking.getByLabel("סכום", { exact: true }).fill("25");
+  await booking.getByRole("button", { name: "שמירה" }).click();
+  await expect(page.getByRole("link", { name: "GMAIL-TEST-2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "מסמכים מ־Gmail הממתינים לבדיקה" })).toHaveCount(0);
   await page.goto("/expenses?month=" + month);
   await expect(page.getByRole("cell", { name: "מאומת", exact: true })).toBeVisible();
 
