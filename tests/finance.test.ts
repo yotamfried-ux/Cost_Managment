@@ -88,3 +88,13 @@ test("project allocations preserve cents, partial allocations and credits", asyn
   assert.equal([...credit.values()].reduce((a,b) => a+b,0), -101);
   assert.throws(() => splitAmount(99,[{projectId:"a",basisPoints:10001}]));
 });
+
+test("Gmail diagnostics retain known error codes and omit credential-bearing details", async () => {
+  const { GmailImportError } = await import("../src/lib/gmail-receipts");
+  const failure = GmailImportError.from("oauth", { response: { status: 400, data: { error: "invalid_grant", error_description: "private data" } } });
+  assert.equal(failure.stage, "oauth");
+  assert.equal(failure.code, "invalid_grant");
+  assert.equal(failure.status, 400);
+  assert.equal(JSON.stringify(failure).includes("private data"), false);
+  assert.equal(GmailImportError.from("oauth", { response: { status: 400, data: { error: "unknown sensitive text" } } }).code, undefined);
+});

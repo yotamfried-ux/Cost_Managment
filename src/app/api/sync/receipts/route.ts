@@ -1,5 +1,5 @@
 import { constantEqual } from "@/lib/auth";
-import { gmailConfig, googleReceipts } from "@/lib/gmail-receipts";
+import { gmailConfig, GmailImportError, googleReceipts } from "@/lib/gmail-receipts";
 import { audit } from "@/lib/ledger";
 import { LedgerRepository, storageConfig } from "@/lib/repository";
 
@@ -13,9 +13,12 @@ export async function GET(request: Request) {
   const storage = storageConfig();
   if (!config || !storage) return new Response(null, { status: 503 });
   const repository = new LedgerRepository(storage);
+  let phase = "storage_read";
   try {
     const old = await repository.read();
+    phase = "gmail_payload";
     const batch = await googleReceipts(config, old.inboxReceipts ?? []);
+    phase = "storage_write";
     const count = await repository.transaction(data => {
       const receipts = data.inboxReceipts ?? [];
       const fingerprints = new Set([...receipts.map(item => item.digest), ...data.invoices.map(item => item.sha256)]);
@@ -30,8 +33,11 @@ export async function GET(request: Request) {
       data.inboxReceipts = receipts;
       return { result: added.length, changed: Boolean(added.length), documents: added };
     });
+    console.info(JSON.stringify({ event: "gmail_receipt_import_completed", added: count }));
     return Response.json({ added: count });
-  } catch {
+  } catch (error) {
+    const details = error instanceof GmailImportError ? { stage: error.stage, status: error.status, code: error.code } : { stage: phase };
+    console.warn(JSON.stringify({ event: "gmail_receipt_import_failed", ...details }));
     return new Response(null, { status: 502 });
   }
 }

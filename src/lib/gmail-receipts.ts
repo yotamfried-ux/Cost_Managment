@@ -47,26 +47,43 @@ const pdfs = (node: Part): Part[] => {
   return (node.parts ?? []).flatMap(pdfs);
 };
 
+type GmailStage = "oauth" | "list" | "message" | "attachment";
+const knownOAuthErrors = new Set(["invalid_grant", "invalid_client", "unauthorized_client", "access_denied", "invalid_scope", "temporarily_unavailable"]);
+export class GmailImportError extends Error {
+  constructor(readonly stage: GmailStage, readonly status: number | undefined, readonly code: string | undefined) {
+    super("Gmail import failed");
+  }
+
+  static from(stage: GmailStage, cause: unknown) {
+    const response = z.object({
+      response: z.object({ status: z.number().int().min(100).max(599).optional(), data: z.object({ error: z.string() }).optional().catch(undefined) }),
+    }).safeParse(cause);
+    const details = response.success ? response.data.response : undefined;
+    const rawCode = details?.data?.error;
+    return new GmailImportError(stage, details?.status, rawCode && knownOAuthErrors.has(rawCode) ? rawCode : undefined);
+  }
+}
+
 export async function googleReceipts(config: Config, previous: InboxReceipt[]): Promise<{ item: InboxReceipt; bytes: Buffer }[]> {
   const oauth = new OAuth2Client(config.clientId, config.clientSecret);
   oauth.setCredentials({ refresh_token: config.refreshToken });
-  const { token } = await oauth.getAccessToken();
-  if (!token) throw new Error("Gmail access unavailable");
-  const api = async (path: string) => {
+  const { token } = await oauth.getAccessToken().catch(cause => { throw GmailImportError.from("oauth", cause); });
+  if (!token) throw new GmailImportError("oauth", undefined, undefined);
+  const api = async (stage: GmailStage, path: string) => {
     const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/" + path, {
       headers: { Authorization: `Bearer ${token}` }, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(7000),
     });
-    if (!response.ok) throw new Error("Gmail request failed");
+    if (!response.ok) throw new GmailImportError(stage, response.status, undefined);
     return response.json() as Promise<unknown>;
   };
   const query = `newer_than:90d has:attachment filename:pdf { ${config.allowed.map(row => "from:" + row.email).join(" ")} }`;
   const params = new URLSearchParams({ labelIds: config.label, q: query, maxResults: "20" });
-  const list = messageList.parse(await api("messages?" + params));
+  const list = messageList.parse(await api("list", "messages?" + params));
   const processed = new Set(previous.map(item => item.messageId + ":" + item.attachmentId));
   const output: { item: InboxReceipt; bytes: Buffer }[] = [];
   for (const packet of (list.messages ?? [])) {
     if (output.length >= 5) break;
-    const row = message.parse(await api("messages/" + packet.id + "?format=full"));
+    const row = message.parse(await api("message", "messages/" + packet.id + "?format=full"));
     if (row.id !== packet.id || !row.labelIds.includes(config.label)) continue;
     const sender = alignedSender(row.payload.headers, config.allowed);
     if (!sender) continue;
@@ -77,7 +94,7 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]): 
       if (output.length >= 5) break;
       const locator = pdf.body?.attachmentId;
       if (!locator || processed.has(row.id + ":" + locator)) continue;
-      const { data } = attachment.parse(await api(`messages/${row.id}/attachments/${locator}`));
+      const { data } = attachment.parse(await api("attachment", `messages/${row.id}/attachments/${locator}`));
       if (data.length > Math.ceil(pdfMaxSize * 4 / 3) + 4) continue;
       const bytes = Buffer.from(data,"base64url");
       if (!validPdf(bytes)) continue;
