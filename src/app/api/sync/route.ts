@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { constantEqual } from "@/lib/auth";
 import { connectors, type ProviderCost } from "@/lib/connectors";
 import { monthOffset } from "@/lib/finance";
-import { ingestCost } from "@/lib/ledger";
+import { ingestCost, registerVercelBilling } from "@/lib/ledger";
 import { LedgerRepository, storageConfig, type Run } from "@/lib/repository";
 
 export const maxDuration = 60;
@@ -15,7 +15,11 @@ export async function GET(request: Request) {
   if (!storage) return new Response(null, { status: 503 });
   const ledger = new LedgerRepository(storage);
   const adapters = connectors();
-  const data = await ledger.read();
+  let data = await ledger.read();
+  const teamId = process.env.VERCEL_BILLING_TEAM_ID;
+  if (teamId && adapters.has("vercel") && !data.accounts.some(item => item.provider === "vercel" && item.external_account_id === teamId)) {
+    data = await ledger.transaction(current => ({ result: current, changed: registerVercelBilling(current, teamId) }));
+  }
   const accounts = data.accounts.filter(item => adapters.has(item.provider));
   if (!accounts.length) return Response.json({ checked: 0, failed: 0 });
   if (accounts.length > 10) return new Response(null, { status: 503 });

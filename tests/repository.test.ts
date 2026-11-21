@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { authConfig, encodeBase32, issueSession, passwordHash, readSession, totp, verifyPassword, verifyTotp } from "../src/lib/auth";
-import { applyExchangeRate, assertWriter, ingestCost, matchInvoice } from "../src/lib/ledger";
+import { applyExchangeRate, assertWriter, ingestCost, matchInvoice, registerVercelBilling } from "../src/lib/ledger";
 import { storedWebhookInbox } from "../src/lib/plugins";
-import { LedgerRepository, type Charge } from "../src/lib/repository";
+import { emptyData, LedgerRepository, type Charge } from "../src/lib/repository";
 
 test("signed MFA sessions reject invalid passwords, changed permissions, tampering and expiry", async () => {
   const account = {
@@ -162,4 +162,15 @@ test("the shared login kill switch revokes existing shared cookies without disab
   assert.equal(disabled.shared,undefined);
   assert.equal(readSession(disabled.key,disabled.accounts,sharedCookie),undefined);
   assert.equal(readSession(disabled.key,disabled.accounts,ownerCookie)?.role,"owner");
+});
+
+test("bootstrap adds one Vercel account per configured team and reuses an existing supplier", () => {
+  const data = emptyData();
+  data.suppliers.push({ id: "existing", name: "Vercel", category: "cloud" });
+  assert.equal(registerVercelBilling(data,"team_first"),true);
+  assert.equal(registerVercelBilling(data,"team_first"),false);
+  assert.equal(data.suppliers.length,1);
+  assert.equal(data.accounts.length,1);
+  assert.equal(data.accounts[0].supplier_id,"existing");
+  assert.equal(data.audit.length,1);
 });

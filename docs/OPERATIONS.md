@@ -20,7 +20,7 @@ The daily scheduler calls `/api/sync` only when `CRON_SECRET` is set. Configure 
 
 | Source | Current path |
 | --- | --- |
-| Vercel | Official Team Billing FOCUS JSONL endpoint. Imports billed cost in USD for the verified team. Team-level totals have no project attribution. |
+| Vercel | Official Team Billing FOCUS JSONL endpoint. Imports billed cost in USD for the verified team. Team-level totals have no project attribution. Setting `VERCEL_BILLING_TEAM_ID` registers the Vercel supplier and billing account on the next authenticated sync if they do not already exist. |
 | OpenAI API | Organization Costs API. ChatGPT Plus receipts are separate. |
 | Anthropic API | Organization Cost Report in cents. Claude Pro receipts are separate. |
 | GitHub | Organization billing usage. Imports net billable usage for eligible organizations. |

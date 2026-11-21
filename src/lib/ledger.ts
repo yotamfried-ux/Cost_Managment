@@ -58,6 +58,21 @@ export function applyExchangeRate(charge: Charge, input: { quote: string; quoted
   charge.amount_ils_minor = minor;
 }
 
+export function registerVercelBilling(data: WorkspaceData, teamId: string) {
+  if (!/^team_[A-Za-z0-9]+$/.test(teamId)) throw new Error("Invalid Vercel billing team");
+  if (data.accounts.some(account => account.provider === "vercel" && account.external_account_id === teamId)) return false;
+  let supplier = data.suppliers.find(row => row.name.toLowerCase() === "vercel");
+  if (!supplier) {
+    supplier = { id: randomUUID(), name: "Vercel", category: "פיתוח והרצה" };
+    data.suppliers.push(supplier);
+    audit(data, "sync", "suppliers", "INSERT", supplier);
+  }
+  const account = { id: randomUUID(), provider: "vercel", external_account_id: teamId, supplier_id: supplier.id, last_synced_at: null };
+  data.accounts.push(account);
+  audit(data, "sync", "provider_accounts", "INSERT", account);
+  return true;
+}
+
 export function ingestCost(data: WorkspaceData, accountId: string, event: ProviderCost) {
   const account = data.accounts.find(item => item.id === accountId);
   if (!account) throw new Error("Provider account removed");
