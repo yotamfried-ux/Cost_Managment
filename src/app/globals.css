@@ -214,3 +214,6 @@ input:not([type=hidden]), select { min-height: 35px; }
   .panel-heading h2 { font-size: 15px; }
   .chart-legend li { grid-template-columns: minmax(0,1.35fr) minmax(22px,1fr) 27px; }
 }
+
+.field-stack .remember-device { display: flex; align-items: center; gap: 8px; }
+.remember-device input[type="checkbox"] { min-height: auto; width: 16px; height: 16px; accent-color: var(--teal); }

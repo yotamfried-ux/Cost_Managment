@@ -2,23 +2,25 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { authConfig, readSession } from "./auth";
-import { LedgerRepository, storageConfig } from "./repository";
+import { emptyData, LedgerRepository, storageConfig } from "./repository";
 
 export const sessionCookie = "d2r_session";
 
-export function isConfigured() {
-  return Boolean(storageConfig() && authConfig());
+export function signInModes() {
+  const auth = authConfig();
+  return { shared: Boolean(auth?.shared), personal: Boolean(auth?.accounts.length && storageConfig()) };
 }
 
 export const workspace = cache(async () => {
   const storage = storageConfig();
   const auth = authConfig();
-  if (!storage || !auth) return null;
+  if (!auth) return null;
   const request = await cookies();
-  const session = readSession(auth.key, auth.accounts, request.get(sessionCookie)?.value ?? "");
+  const accounts = storage ? [...auth.accounts] : [];
+  const session = readSession(auth.key, auth.shared ? [...accounts, auth.shared] : accounts, request.get(sessionCookie)?.value ?? "");
   if (!session) return null;
-  const ledger = new LedgerRepository(storage);
-  const data = await ledger.read();
+  const ledger = storage ? new LedgerRepository(storage) : null;
+  const data = ledger ? await ledger.read() : emptyData();
   return { user: { email: session.email }, role: session.role, data, ledger };
 });
 

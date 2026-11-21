@@ -10,7 +10,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const invoice = access.data.invoices.find(row => row.id === id);
   const receipt = access.data.inboxReceipts?.find(row => row.id === id);
   if (!invoice && !receipt) return new Response(null, { status: 404 });
-  const bytes = await access.ledger.document(id);
+  const bytes = await access.ledger?.document(id);
   if (!bytes || createHash("sha256").update(bytes).digest("hex") !== (invoice?.sha256 ?? receipt?.digest)) return new Response(null, { status: 404 });
   const filename = encodeURIComponent((invoice?.original_name ?? receipt?.originalName ?? "invoice.pdf").toWellFormed()).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16).toUpperCase());
   return new Response(new Uint8Array(bytes), { headers: {

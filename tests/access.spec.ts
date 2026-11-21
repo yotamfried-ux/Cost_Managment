@@ -17,12 +17,13 @@ test("unauthenticated visits redirect, finance APIs refuse access and security h
 
 async function login(page: Page, role: "owner" | "viewer") {
   await page.goto("/sign-in");
-  await page.getByLabel("דואר אלקטרוני").fill(role + "@d2r.test");
-  await page.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  const form = page.getByRole("form", { name: "כניסה לחשבון אישי" });
+  await form.getByLabel("דואר אלקטרוני").fill(role + "@d2r.test");
+  await form.getByLabel("סיסמת חשבון").fill(process.env.D2R_TEST_PASSWORD!);
   const account = authConfig()?.accounts.find(row => row.role === role);
   if (!account) throw new Error("Test account unavailable");
-  await page.getByLabel("קוד אימות").fill(totp(account.totpSecret));
-  await page.getByRole("button", { name: "כניסה", exact: true }).click();
+  await form.getByLabel("קוד אימות").fill(totp(account.totpSecret));
+  await form.getByRole("button", { name: /כניסה/ }).click();
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
 }
 
@@ -104,4 +105,29 @@ test("isolated viewer can read the workspace and cannot start expense creation",
   await expect(page.getByRole("link", { name: "הוספת הוצאה" })).toHaveCount(0);
   await page.goto("/expenses?add=expense");
   await expect(page.getByRole("heading", { name: "הוספת הוצאה" })).toHaveCount(0);
+});
+
+test("shared password keeps a remembered browser signed in and grants viewer access", async ({ page, browser }) => {
+  test.skip(!process.env.D2R_SHARED_PASSWORD_HASH, "Requires shared access fixture");
+  await page.goto("/sign-in");
+  const form = page.getByRole("form", { name: "כניסה עם סיסמה משותפת" });
+  await expect(form.getByRole("checkbox")).toBeChecked();
+  await form.getByLabel("סיסמה").fill("wrong-fixture-password");
+  await form.getByRole("button", { name: "כניסה" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "לא ניתן להתחבר" })).toBeVisible();
+  await form.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  await form.getByRole("button", { name: "כניסה" }).click();
+  await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "הוספת הוצאה" })).toHaveCount(0);
+  const stored = await page.context().storageState();
+  expect(stored.cookies.find(cookie => cookie.name === "d2r_session")?.httpOnly).toBe(true);
+  expect(stored.cookies.find(cookie => cookie.name === "d2r_session")?.expires).toBeGreaterThan(Date.now() / 1000 + 29 * 86400);
+  const remembered = await browser.newContext({ storageState: stored });
+  try {
+    const tab = await remembered.newPage();
+    await tab.goto(page.url());
+    await expect(tab.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
+  } finally {
+    await remembered.close();
+  }
 });

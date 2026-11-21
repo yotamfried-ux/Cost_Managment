@@ -31,5 +31,6 @@ if (process.env.GITHUB_ACTIONS) {
 const values = {
   D2R_LOCAL_DATA_DIR: root, D2R_DATA_KEY: dataKey.toString("base64url"), D2R_SESSION_SECRET: sessionKey,
   D2R_AUTH_ACCOUNTS: JSON.stringify(accounts), D2R_TEST_PASSWORD: password,
+  D2R_SHARED_PASSWORD_HASH: await passwordHash(password),
 };
 await appendFile(process.env.GITHUB_ENV, Object.entries(values).map(([key,value]) => `${key}=${value}\n`).join(""), { mode: 0o600 });

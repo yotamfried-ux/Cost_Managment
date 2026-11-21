@@ -248,9 +248,9 @@ async function Settings({ access, search, month }: View) {
         {owner && <button className="button primary">שמור שינויים</button>}
       </form></Panel>
       <Panel title="אבטחה והרשאות" action={<ShieldCheck size={20} aria-hidden="true"/>}>
-        <dl className="info-list"><div><dt>חשבון מחובר</dt><dd><bdi>{access.user.email}</bdi></dd></div>
+        <dl className="info-list"><div><dt>חשבון מחובר</dt><dd><bdi>{access.user.email === "shared@d2r.invalid" ? "גישה משותפת" : access.user.email}</bdi></dd></div>
           <div><dt>הרשאה</dt><dd>{{ owner:"בעלים", editor:"עורך", viewer:"צופה" }[access.role] ?? "—"}</dd></div>
-          <div><dt>אימות דו־שלבי</dt><dd><Chip tone="good">פעיל</Chip></dd></div>
+          <div><dt>שיטת כניסה</dt><dd><Chip tone="good">{access.user.email === "shared@d2r.invalid" ? "סיסמה משותפת" : "אימות דו־שלבי"}</Chip></dd></div>
           <div><dt>מסמכי מקור</dt><dd>אחסון פרטי</dd></div></dl>
       </Panel>
       <Panel title="העדפות פיננסיות">

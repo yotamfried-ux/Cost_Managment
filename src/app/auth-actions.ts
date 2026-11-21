@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { LedgerRepository, storageConfig } from "@/lib/repository";
-import { authConfig, issueSession, sessionDuration, verifyPassword, verifyTotp } from "@/lib/auth";
+import { authConfig, issueSession, rememberedSessionDuration, sessionDuration, verifyPassword, verifyTotp, type SessionAccount } from "@/lib/auth";
 import { sessionCookie } from "@/lib/session";
 
 const attempts = new Map<string, { expires: number; count: number }>();
@@ -23,6 +23,26 @@ function allowAttempt(ip: string, email: string) {
   if (counters[0].count >= 15 || counters[1].count >= 8) return false;
   counters.forEach(record => record.count++);
   return true;
+}
+
+async function finishSignIn(key: Buffer, account: SessionAccount, remember: boolean) {
+  const duration = remember ? rememberedSessionDuration : sessionDuration;
+  (await cookies()).set(sessionCookie, issueSession(key, account, undefined, duration), {
+    secure: Boolean(process.env.VERCEL), httpOnly: true, sameSite: "lax", path: "/",
+    ...(remember ? { maxAge: duration } : {}),
+  });
+  redirect("/");
+}
+
+export async function signInShared(form: FormData) {
+  const auth = authConfig();
+  const password = z.string().min(1).max(200).safeParse(form.get("password"));
+  if (!auth?.shared || !password.success) redirect("/sign-in?error=auth");
+  const request = await headers();
+  const ip = request.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || "local";
+  if (!allowAttempt(ip, "shared:" + ip)) redirect("/sign-in?error=rate");
+  if (!(await verifyPassword(password.data, auth.shared))) redirect("/sign-in?error=auth");
+  await finishSignIn(auth.key, auth.shared, form.get("remember") === "on");
 }
 
 export async function signIn(form: FormData) {
@@ -53,10 +73,7 @@ export async function signIn(form: FormData) {
     redirect("/sign-in?error=storage");
   }
   if (!consumed) redirect("/sign-in?error=used");
-  (await cookies()).set(sessionCookie, issueSession(auth.key, account), {
-    secure: Boolean(process.env.VERCEL), httpOnly: true, sameSite: "lax", path: "/", maxAge: sessionDuration,
-  });
-  redirect("/");
+  await finishSignIn(auth.key, account, form.get("remember") === "on");
 }
 
 export async function signOut() {

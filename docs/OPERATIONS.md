@@ -35,6 +35,8 @@ Each API cost has a stable billing key. A replay of the same version does not du
 
 ## Release and open scope
 
+Set `D2R_SHARED_PASSWORD_HASH` to a salted password hash to enable shared viewer access. The sign-in form remembers the browser for 30 days by default through an HttpOnly session cookie. Personal owner and editor accounts retain TOTP access. With the ledger configuration absent, the shared sign-in can access an empty workspace that is explicitly marked read-only.
+
 The application has a health route and a locked sign-in screen when credentials are missing. Verify authenticated Preview workflows before requesting explicit Production approval. Obtain the exact DNS target from the Vercel project domain settings. The owner manages Namecheap records.
 
 The current scope includes manual expense and supplier intake, encrypted PDF upload and download, explicit reconciliation, project drill-down, manual FX, threshold alerts, CSV reporting, and disabled account/payment/invoice contracts. Remaining work includes further supplier adapters and live Gmail receipt validation, provider credential validation, invoice OCR, invoice bundles and XLSX/PDF report formats, richer allocation editing and forecasts, restore drills, and authenticated hosted Preview/Production verification.

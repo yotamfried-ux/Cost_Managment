@@ -28,7 +28,7 @@ export async function mutate(kind: string, form: FormData) {
   const route = allowed.get(kind)?.includes(String(fields.return)) ? String(fields.return) : "/";
   const month = resolveMonth(String(fields.month));
   const href = (field: string) => `${route}?month=${month}&${field}${field === "error=save" ? `&add=${encodeURIComponent(kind)}` : ""}`;
-  if (role === "viewer" || (["settings","account"].includes(kind) && role !== "owner")) redirect(href("error=permission"));
+  if (!ledger || role === "viewer" || (["settings","account"].includes(kind) && role !== "owner")) redirect(href("error=permission"));
 
   try {
     let document: { id: string; bytes: Buffer } | undefined;
