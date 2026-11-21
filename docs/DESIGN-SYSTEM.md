@@ -1,0 +1,54 @@
+# D2R Management — Visual Source of Truth
+
+## Strict visual lock
+The **user-uploaded screenshot titled "ניהול העסק" dated 21 November 2026** is the **ONE approved desktop homepage visual reference**. Save the original screenshot under \`design/reference/approved-home.png\` when a binary upload path is available. Do not substitute AI variants or reinterpret the approved design. The file should be tagged \`APPROVED_REFERENCE\`.
+
+**Approved layout:** 1536×~960 wide desktop; compact right-side nav rail (~15% width) in white, brand at top; near-white ivory page and subtle pastel wave header background; upper controls search + November date selector + user/notification; main title aligned RTL; green add-expense action on upper left; 4 horizontal KPI cards; next row large income/expense chart on left and doughnut allocation on right; next row project summary on left and upcoming charges on right; lower full-width activity ledger; annual summary small card at sidebar footer.
+
+### Exact style direction
+- Base background: warm almost-white #FCFAF7, faint cream/green wave gradient accent #EAF4EE; white cards #FFFFFF.
+- Main text charcoal / deep ink #172438; muted text #67737B.
+- Primary action dark emerald #087D66 (not royal blue), teal #168C7A; soft mint #BDE4D6.
+- Expenses / negative alert: coral #F17968 with light coral backgrounds #FFF0ED.
+- Success: muted green #4C9D75 / #E5F5EA.
+- Shadows diffuse, low elevation; 1px subtle borders; radii ~14–20px cards, controls ~8–12px.
+- RTL fully correct; number and ISO currency fragments use bidi isolation; do not mirror financial left-to-right charts blindly.
+- Typography: high-legibility Hebrew font with balanced density, e.g. **Heebo** / **Assistant** subject to actual font loading and license; avoid decorative headlines.
+- Avoid saturated electric blue, violet dominant UI, heavy gradients, huge hero or marketing page look, excessive animations.
+- Prior screenshot generated texts/numbers are **demo**; never ship them as real.
+- Desired responsive fallback: stacked KPI cards, charts, ledgers, primary bottom nav on mobile, preserving color/style.
+
+### Reuse across pages
+1. Same sidebar dimensions, icons, text alignment, selected mint background and annual-summary widget.
+2. Same header composition, search box, date picker, notification dot, action button styling.
+3. Same KPI style and positions, only labels/values change.
+4. Same doughnut chart palette, same coral-bar/teal-line analytics grammar.
+5. Same table density and status chips.
+6. Every new page must be reviewed **side-by-side** with approved screenshot before implementation is accepted.
+7. Screens to implement **without regenerating homepage**: Projects, Expenses, Invoices, Suppliers, Reports, Integrations, Settings, per-project detail, future Revenue/Customers/Payments.
+
+### Prototype / evidence protocol
+- Keep approved screenshot file immutable. Put revisions in a different folder.
+- Screenshot side-by-side regression test for desktop dimensions and mobile screenshots.
+- Source-image exact preservation: don't rename \`Cost_Managment\` repository; change visible app label to \`D2R Management\`.
+- In repo design assets, distinguish \`reference\` (approved PNG), \`explorations\` (other generated mockups), and \`implementation\` (actual captured app screenshots). Do not treat explorations as approvals.
+- Keep **design mockups out of production financial datasets**. Add clear DEMO labels to mock data previews.
+
+## Screen-specific fidelity
+| Screen | Required middle content, shared chrome unchanged |
+|---|---|
+| Projects | project cards + budgets, owner/cost breakdown + drilldown |
+| Expenses | 4 cost KPI, line/coral chart, expense allocation doughnut, filters, table |
+| Invoices | document KPI, status counts, vendors doughnut, document table, document viewer |
+| Suppliers | active supplier KPI, upcoming renewals, supplier category doughnut, status list |
+| Reports | time range KPI, trend, per-project breakdown, exports and annual pack |
+| Integrations | connection KPIs, connector health, data provenance, sync history |
+| Settings | business identity, tax review flags, currencies, alerts, backup, permissions |
+| SportReel | usage/run costs, storage/API fees, production metrics, invoices |
+| Revenue/Clients | income, revenue streams, payment state, customer ledger via plugins |
+
+## Engineering OS UX quality gates
+Refer to \`Engineering-OS/docs/ui-ux/PRODUCT-EXPERIENCE-QUALITY-GATE.md\` and \`external-skills/ui-ux-pro-max/\`. Accessibility & localization are launch gates. No experience rating PASS based on mockup. Avoid generic dashboard templates and don't redesign visual identity during development.
+
+### Image availability / provenance
+This spec **references** original PNGs from the ChatGPT conversation, but binary-image upload to this repository must be independently verified; do not claim any image exists on \`main\` unless GitHub contents returns its path. Visual references generated by AI may have inaccurate numbers, names and dates.
