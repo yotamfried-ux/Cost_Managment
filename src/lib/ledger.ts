@@ -77,7 +77,7 @@ export function ingestCost(data: WorkspaceData, accountId: string, event: Provid
   const account = data.accounts.find(item => item.id === accountId);
   if (!account) throw new Error("Provider account removed");
   const digest = createHash("sha256").update(JSON.stringify(event)).digest("hex");
-  if (data.costEvents.some(row => row.account === accountId && row.key === event.key && row.digest === digest)) return false;
+  if (data.costEvents.findLast(row => row.account === accountId && row.key === event.key)?.digest === digest) return false;
   data.costEvents.push({ account: accountId, key: event.key, digest, observedAt: new Date().toISOString(), payload: event });
   const charge = data.charges.find(row => row.account_id === accountId && row.external_key === event.key);
   if (charge?.evidence === "verified") {

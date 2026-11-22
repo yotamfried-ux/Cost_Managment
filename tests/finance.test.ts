@@ -9,6 +9,10 @@ import { actualStatus, allCharges, unassigned, type Access } from "../src/lib/qu
 import { emptyData, type Charge } from "../src/lib/repository";
 import { fillReferenceRates, referenceRates } from "../src/lib/reference-rates";
 import { applyPaymentDocument, parsePaymentText, readPaymentDocument } from "../src/lib/payment-documents";
+import { nextGmailPage } from "../src/lib/gmail-receipts";
+import { ingestCost, registerVercelBilling } from "../src/lib/ledger";
+import { googleBillingConnector } from "../src/lib/google-billing";
+import { JWT } from "google-auth-library";
 
 test("Jerusalem month coverage and currency minor units", () => {
   assert.equal(businessDate(new Date("2026-03-31T22:00:00Z")), "2026-04-01");
@@ -21,6 +25,52 @@ test("Jerusalem month coverage and currency minor units", () => {
 
 test("CSV neutralizes formulas and escapes values", () => {
   assert.equal(safeCsv([[" =SUM(A1)", 'a,"b"', -17, null, "\tspreadsheet"]]), '\uFEFF"\' =SUM(A1)","a,""b""","-17","","\'\tspreadsheet"');
+});
+
+test("Gmail keeps a page cursor until every message is settled", () => {
+  const page = { ids: ["seen", "unprocessed"], cursor: "previous", next: "next" };
+  assert.equal(nextGmailPage(page, new Set(["seen"])), "previous");
+  assert.equal(nextGmailPage(page, new Set(["seen", "unprocessed"])), "next");
+  assert.equal(nextGmailPage({ ...page, next: undefined }, new Set(["seen", "unprocessed"])), undefined);
+});
+
+test("provider revisions can restore an earlier total without adding a second charge", () => {
+  const data = emptyData();
+  registerVercelBilling(data, "team_fixture");
+  const input = { key: "fixture", start: "2026-11-01", end: "2026-11-02", label: "Vercel", currency: "USD", minor: 100 };
+  const id = data.accounts[0].id;
+  assert.equal(ingestCost(data, id, input), true);
+  assert.equal(ingestCost(data, id, { ...input, minor: 200 }), true);
+  assert.equal(ingestCost(data, id, input), true);
+  assert.equal(ingestCost(data, id, input), false);
+  assert.equal(data.charges.length, 1);
+  assert.equal(data.charges[0].amount_minor, 100);
+  assert.equal(data.costEvents.length, 3);
+});
+
+test("Gemini billing waits for a BigQuery job and reads its remaining pages", async t => {
+  t.mock.method(JWT.prototype, "getAccessToken", async () => ({ token: "fixture" }));
+  const jobReference = { jobId: "fixture_job", location: "us-central1" };
+  const row = (date: string, cost: string) => ({ f: [{ v: date }, { v: "USD" }, { v: cost }] });
+  const replies = [
+    { jobComplete: false, jobReference },
+    { jobComplete: true, pageToken: "next", rows: [row("2026-11-01", "1.25")] },
+    { jobComplete: true, rows: [row("2026-11-02", "-0.25")] },
+  ];
+  const requests: URL[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {
+    requests.push(new URL(url));
+    if (options.method === "POST") assert.equal(JSON.parse(String(options.body)).maximumBytesBilled, "500000000");
+    return Response.json(replies.shift());
+  });
+  const connector = googleBillingConnector({
+    project: "fixture-project", table: "fixture-project.billing.cost", location: "us-central1", skus: ["AAAA-BBBB-CCCC"],
+    credentials: { client_email: "service@example.com", private_key: "fixture" }, maximumBytes: "500000000",
+  });
+  const costs = await connector.syncCosts({ start: "2026-11-01", end: "2026-11-03", account: "tracked-project" });
+  assert.deepEqual(costs.map(cost => cost.minor), [125, -25]);
+  assert.equal(requests[1].pathname.endsWith("/fixture_job"), true);
+  assert.equal(requests[2].searchParams.get("pageToken"), "next");
 });
 
 test("Bank of Israel rates use the latest published day, preserve existing conversions, and are idempotent", async t => {

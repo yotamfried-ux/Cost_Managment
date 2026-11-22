@@ -3,7 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 import { cleanFilename, pdfMaxSize, validPdf } from "./documents";
 import { businessDate } from "./finance";
-import type { InboxReceipt } from "./repository";
+import type { GmailScan, InboxReceipt } from "./repository";
 
 const senderSchema = z.object({ email: z.email(), dkim: z.string().regex(/^[a-z0-9.-]+$/), emailReceipt: z.boolean().optional() });
 const namecheapSender = "support@namecheap.com";
@@ -24,7 +24,7 @@ export function gmailConfig(): Config | undefined {
 }
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,250}$/);
-const messageList = z.object({ messages: z.array(z.object({ id })).optional() });
+const messageList = z.object({ messages: z.array(z.object({ id })).optional(), nextPageToken: z.string().min(1).max(2048).optional() });
 const header = z.object({ name: z.string(), value: z.string() });
 type Part = { filename?: string; mimeType?: string; body?: { size: number; attachmentId?: string; data?: string }; parts?: Part[]; headers?: z.infer<typeof header>[] };
 const part: z.ZodType<Part> = z.lazy(() => z.object({
@@ -84,55 +84,71 @@ export class GmailImportError extends Error {
   }
 }
 
-export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
+export function nextGmailPage(page: { ids: string[]; next?: string; cursor?: string }, settled: ReadonlySet<string>) {
+  return page.ids.every(id => settled.has(id)) ? page.next : page.cursor;
+}
+
+export async function googleReceipts(config: Config, previous: InboxReceipt[], prior?: GmailScan) {
   const oauth = new OAuth2Client(config.clientId, config.clientSecret);
   oauth.setCredentials({ refresh_token: config.refreshToken });
   const { token } = await oauth.getAccessToken().catch(cause => { throw GmailImportError.from("oauth", cause); });
   if (!token) throw new GmailImportError("oauth", undefined, undefined);
+  const deadline = AbortSignal.timeout(35_000);
   const api = async (stage: GmailStage, path: string) => {
     const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/" + path, {
-      headers: { Authorization: `Bearer ${token}` }, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(7000),
+      headers: { Authorization: `Bearer ${token}` }, redirect: "error", cache: "no-store", signal: AbortSignal.any([deadline, AbortSignal.timeout(7000)]),
     });
     if (!response.ok) throw new GmailImportError(stage, response.status, undefined);
     return response.json() as Promise<unknown>;
   };
-  const query = `newer_than:90d has:attachment filename:pdf { ${config.allowed.map(row => "from:" + row.email).join(" ")} }`;
-  const params = new URLSearchParams({ labelIds: config.label, q: query, maxResults: "20" });
-  const list = messageList.parse(await api("list", "messages?" + params));
-  const packets = new Map((list.messages ?? []).map(row => [row.id, row]));
+  const scope = createHash("sha256").update(JSON.stringify(["v1", config.label, config.allowed])).digest("hex");
   const emailSenders = config.allowed.filter(row => row.emailReceipt);
-  if (emailSenders.length) {
-    const emailQuery = `newer_than:90d {subject:receipt subject:invoice subject:"Namecheap Order Summary"} { ${emailSenders.map(row => "from:" + row.email).join(" ")} }`;
-    const emailParams = new URLSearchParams({ labelIds: config.label, q: emailQuery, maxResults: "20" });
-    const emails = messageList.parse(await api("list", "messages?" + emailParams));
-    for (const row of emails.messages ?? []) packets.set(row.id,row);
-  }
+  const lanes = {
+    pdf: `has:attachment filename:pdf { ${config.allowed.map(row => "from:" + row.email).join(" ")} }`,
+    email: emailSenders.length ? `{subject:receipt subject:invoice subject:"Namecheap Order Summary"} { ${emailSenders.map(row => "from:" + row.email).join(" ")} }` : undefined,
+  };
+  const pages = await Promise.all((["pdf", "email"] as const).map(async lane => {
+    const query = lanes[lane];
+    if (!query) return { lane, ids: [] as string[] };
+    let cursor = prior?.scope === scope ? prior[lane] : undefined;
+    const params = new URLSearchParams({ labelIds: config.label, q: "newer_than:1y " + query, maxResults: "8" });
+    if (cursor) params.set("pageToken", cursor);
+    const list = await api("list", "messages?" + params).catch(error => {
+      if (!cursor || !(error instanceof GmailImportError) || error.status !== 400) throw error;
+      cursor = undefined;
+      params.delete("pageToken");
+      return api("list", "messages?" + params);
+    });
+    const page = messageList.parse(list);
+    return { lane, ids: (page.messages ?? []).map(row => row.id), next: page.nextPageToken, cursor };
+  }));
+  const packets = new Set(pages.flatMap(page => page.ids));
   const processed = new Set(previous.map(item => item.messageId + ":" + item.attachmentId));
   const digests = new Set(previous.map(item => item.digest));
   const counts = { messages: packets.size, visited: 0, skippedLabel: 0, skippedSender: 0,
-    skippedDate: 0, candidates: 0, missingLocator: 0, existing: 0, invalidPdf: 0, duplicatedContent: 0, invalidEmail: 0 };
+    skippedDate: 0, candidates: 0, missingLocator: 0, existing: 0, invalidPdf: 0, duplicatedContent: 0, invalidEmail: 0, failedMessages: 0 };
   const output: { item: InboxReceipt; bytes: Buffer }[] = [];
-  for (const packet of packets.values()) {
-    if (output.length >= 5) break;
+  const settled = new Set<string>();
+  async function processMessage(packet: string) {
     counts.visited++;
-    const row = message.parse(await api("message", "messages/" + packet.id + "?format=full"));
-    if (row.id !== packet.id || !row.labelIds.includes(config.label)) { counts.skippedLabel++; continue; }
+    const row = message.parse(await api("message", "messages/" + packet + "?format=full"));
+    if (row.id !== packet || !row.labelIds.includes(config.label)) { counts.skippedLabel++; return true; }
     const sender = alignedSender(row.payload.headers, config.allowed);
-    if (!sender) { counts.skippedSender++; continue; }
+    if (!sender) { counts.skippedSender++; return true; }
     const parsedDate = new Date(Number(row.internalDate));
-    if (!Number.isFinite(parsedDate.getTime())) { counts.skippedDate++; continue; }
+    if (!Number.isFinite(parsedDate.getTime())) { counts.skippedDate++; return true; }
     const subject = (row.payload.headers?.find(item => item.name.toLowerCase() === "subject")?.value ?? "").slice(0,200);
     const pdfFiles = pdfs(row.payload);
     if (!pdfFiles.length && isReceiptEmail(sender, subject, config.allowed)) {
       const marker = "original-email";
       counts.candidates++;
-      if (processed.has(row.id + ":" + marker)) { counts.existing++; continue; }
+      if (processed.has(row.id + ":" + marker)) { counts.existing++; return true; }
       const original = rawMessage.parse(await api("message", "messages/" + row.id + "?format=raw"));
-      if (original.id !== row.id || original.raw.length > Math.ceil(emailMaxSize * 4 / 3) + 4) { counts.invalidEmail++; continue; }
+      if (original.id !== row.id || original.raw.length > Math.ceil(emailMaxSize * 4 / 3) + 4) { counts.invalidEmail++; return true; }
       const bytes = Buffer.from(original.raw, "base64url");
-      if (!bytes.length || bytes.length > emailMaxSize || !/\r?\n\r?\n/.test(bytes.toString("latin1"))) { counts.invalidEmail++; continue; }
+      if (!bytes.length || bytes.length > emailMaxSize || !/\r?\n\r?\n/.test(bytes.toString("latin1"))) { counts.invalidEmail++; return true; }
       const digest = createHash("sha256").update(bytes).digest("hex");
-      if (digests.has(digest)) { counts.duplicatedContent++; continue; }
+      if (digests.has(digest)) { counts.duplicatedContent++; return true; }
       digests.add(digest);
       output.push({ bytes, item: {
         id: randomUUID(), sender, subject, receivedOn: businessDate(parsedDate),
@@ -140,12 +156,12 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
       } });
     }
     for (const pdf of pdfFiles) {
-      if (output.length >= 5) break;
+      if (output.length >= 5) return false;
       counts.candidates++;
-      const locator = pdf.body?.attachmentId;
+      const locator = pdf.body?.attachmentId ?? (pdf.body?.data ? "inline-" + createHash("sha256").update(pdf.body.data).digest("hex") : undefined);
       if (!locator) { counts.missingLocator++; continue; }
       if (processed.has(row.id + ":" + locator)) { counts.existing++; continue; }
-      const { data } = attachment.parse(await api("attachment", `messages/${row.id}/attachments/${locator}`));
+      const data = pdf.body?.data ?? attachment.parse(await api("attachment", `messages/${row.id}/attachments/${locator}`)).data;
       if (data.length > Math.ceil(pdfMaxSize * 4 / 3) + 4) { counts.invalidPdf++; continue; }
       const bytes = Buffer.from(data,"base64url");
       if (!validPdf(bytes)) { counts.invalidPdf++; continue; }
@@ -157,6 +173,19 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
         digest, messageId: row.id, attachmentId: locator,
       } });
     }
+    return true;
   }
-  return { output, counts };
+  for (const packet of packets) {
+    if (output.length >= 5 || deadline.aborted) break;
+    try {
+      if (await processMessage(packet)) settled.add(packet);
+    } catch (error) {
+      if (error instanceof GmailImportError && error.status === 404) settled.add(packet);
+      else counts.failedMessages++;
+    }
+  }
+  const progress: GmailScan = { scope };
+  for (const page of pages) progress[page.lane] = nextGmailPage(page, settled);
+  const hasMore = Boolean(progress.pdf || progress.email || settled.size < packets.size);
+  return { output, counts, progress, hasMore };
 }

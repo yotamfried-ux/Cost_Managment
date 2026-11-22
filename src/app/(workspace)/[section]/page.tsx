@@ -113,9 +113,10 @@ async function Invoices({ access, month, search, edit }: View) {
       </Panel>
     </div>
     {staged.length > 0 && <Panel title="מסמכים מ־Gmail הממתינים לבדיקה">
-      <DataTable headings={["תאריך קליטה","שולח","מסמך","תיוק"]}>{staged.map(row => <tr key={row.id}>
+    <DataTable headings={["תאריך קליטה","שולח","מסמך","בדיקה","תיוק"]}>{staged.map(row => <tr key={row.id}>
         <td>{displayDate(row.receivedOn)}</td><td><bdi>{row.sender}</bdi></td>
         <td><a className="text-link" href={`/api/documents/${row.id}`}>{row.originalName}</a></td>
+      <td>{row.paymentData === null ? "נדרש אימות ידני" : row.paymentData ? "ממתין להתאמה" : "ממתין לחילוץ"}</td>
         <td>{edit ? <TextLink to={href("/invoices", { month }, { add:"invoice", receipt:row.id })}>בדיקה ותיוק</TextLink> : "ממתין לעורך"}</td>
       </tr>)}</DataTable>
     </Panel>}
@@ -206,9 +207,12 @@ async function Reports({ access, month, search }: View) {
 async function Integrations({ access, month, search }: View) {
   const { accounts } = access.data;
   const runs = access.data.runs.slice(0,30);
+  const gmailRuns = access.data.gmailRuns ?? [];
+  const latestGmail = gmailRuns[0];
   const directory = lookups(access);
   const owner = access.role === "owner";
-  const statusText: Record<string, string> = { completed: "הושלם", failed: "נכשל", running: "בתהליך" };
+  const statusText: Record<string, string> = { completed: "הושלם", partial: "חלקי · ייבדק שוב", failed: "נכשל", running: "בתהליך" };
+  const runTime = new Intl.DateTimeFormat("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" });
   const reasonText: Record<string, string> = { permission: "חסרה הרשאת קריאה", vendor_request: "בקשת ספק נכשלה", storage: "שמירה נכשלה", vendor_data: "נתוני ספק לא תקינים", provider_response: "תגובה בלתי צפויה מהספק" };
   const active = new Set(accounts.filter(row => runs.find(run => run.provider_account_id === row.id)?.status === "completed").map(row => row.provider));
   return <>
@@ -227,11 +231,18 @@ async function Integrations({ access, month, search }: View) {
     <Panel title="מקורות נתונים"><DataTable headings={["מקור","נתונים","סטטוס","סנכרון אחרון"]}>{providerCatalog.map(([key, label, scope]) => {
       const account = accounts.find(row => row.provider === key);
       const run = runs.find(row => row.provider_account_id === account?.id);
-      const tone = run?.status === "completed" ? "good" : run?.status === "failed" ? "bad" : "neutral";
+      const state = key === "gmail" ? latestGmail?.status : run?.status;
+      const tone = state === "completed" ? "good" : state === "failed" ? "bad" : state === "partial" ? "pending" : "neutral";
       const received = key === "gmail" ? access.data.inboxReceipts?.[0] : undefined;
-      const text = received ? "מסמכים נקלטו" : run ? statusText[run.status] : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
-      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{received ? displayDate(received.receivedOn) : run ? displayDate(run.started_at) : "—"}</td></tr>;
+      const text = state ? statusText[state] : received ? "מסמכים נקלטו" : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
+      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{key === "gmail" && latestGmail ? runTime.format(new Date(latestGmail.at)) : received ? displayDate(received.receivedOn) : run ? displayDate(run.started_at) : "—"}</td></tr>;
     })}</DataTable></Panel>
+    <Panel title="ריצות קליטת חשבוניות מ־Gmail">
+      {gmailRuns.length ? <DataTable headings={["מועד","סטטוס","מסמכים חדשים","תויקו","תשלומים אומתו","מסמכים לבדיקה","המשך סריקה"]}>{gmailRuns.map((run,index) => <tr key={run.at + index}>
+        <td>{runTime.format(new Date(run.at))}</td><td>{statusText[run.status]}</td><td>{run.added}</td>
+        <td>{run.filed}</td><td>{run.paid}</td><td>{run.review ?? "—"}</td><td>{run.hasMore ? "בריצה הבאה" : "—"}</td>
+      </tr>)}</DataTable> : <Blank>טרם תועדה ריצת קליטה.</Blank>}
+    </Panel>
     <Panel title="היסטוריית סנכרון">
       {runs.length ? <DataTable headings={["תאריך","מקור","סטטוס","רשומות","פרטים"]}>{runs.map(run => <tr key={run.id}>
         <td>{displayDate(run.started_at)}</td><td>{providerCatalog.find(row => row[0] === accounts.find(account => account.id === run.provider_account_id)?.provider)?.[1] ?? "—"}</td>

@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Allocation } from "./allocation";
 import type { Evidence } from "./finance";
 import type { FutureFinance } from "./plugins";
+import type { PaymentDocument } from "./payment-documents";
 
 export type Role = "owner" | "editor" | "viewer";
 export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null };
@@ -31,6 +32,13 @@ export type InboxReceipt = {
   id: string; sender: string; subject: string; receivedOn: string; originalName: string; digest: string;
   messageId: string; attachmentId: string; format?: "eml";
   supportingInvoiceId?: string;
+  paymentData?: PaymentDocument | null;
+};
+export type GmailScan = { scope: string; pdf?: string; email?: string };
+export type GmailRun = {
+  at: string; status: "completed" | "partial" | "failed"; reason?: string;
+  added: number; filed: number; paid: number; linked: number; review: number | null;
+  hasMore: boolean;
 };
 export type WorkspaceData = {
   version: 1;
@@ -41,6 +49,8 @@ export type WorkspaceData = {
   lastTotp: Record<string, number>;
   futureFinance?: FutureFinance;
   inboxReceipts?: InboxReceipt[];
+  gmailScan?: GmailScan;
+  gmailRuns?: GmailRun[];
   usdReferenceRate?: { quote: string; quoted: string };
 };
 
