@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   }));
   const earliestRateDate = monthOffset(month,-11) + "-01";
   const rates = await referenceRates([
-    ...data.charges.filter(row => needsReferenceRate(row, earliestRateDate, today)).map(row => ({ currency: row.currency, date: row.recorded_on })),
+    ...data.charges.filter(row => needsReferenceRate(row, earliestRateDate, yesterday)).map(row => ({ currency: row.currency, date: row.recorded_on })),
     ...batches.flatMap(batch => batch.costs.map(row => ({ currency: row.currency, date: row.start }))),
   ]);
   const result = await ledger.transaction(current => {
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
       current.runs.unshift(batch.run);
     }
     current.runs.sort((a,b) => b.started_at.localeCompare(a.started_at));
-    const ratesUpdated = fillReferenceRates(current, rates, earliestRateDate, today);
+    const ratesUpdated = fillReferenceRates(current, rates, earliestRateDate, yesterday);
     const failed = batches.filter(batch => batch.run.status === "failed").length;
     return { result: { checked: accounts.length, failed, ratesUpdated }, changed: batches.length > 0 || ratesUpdated > 0 };
   });

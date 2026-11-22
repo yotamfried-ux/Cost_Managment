@@ -14,7 +14,7 @@ export function needsReferenceRate(charge: Charge, since: string, until: string)
     supported.has(charge.currency) && validDate(charge.recorded_on);
 }
 
-function daysBefore(date: string, days: number) {
+export function daysBefore(date: string, days: number) {
   return new Date(Date.parse(date + "T00:00:00Z") - days * 86_400_000).toISOString().slice(0, 10);
 }
 

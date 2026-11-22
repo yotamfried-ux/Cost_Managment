@@ -1,18 +1,21 @@
 import { ChartNoAxesColumnIncreasing } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { monthTitle, resolveMonth } from "@/lib/finance";
-import { listCharges, lookups, subscriptions, summary, type Search, searchFields } from "@/lib/queries";
-import { Add, Charges, Flash, href, PageTitle, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
-import { ExpenseCharts, ExpenseMetrics, ProjectList } from "@/components/views";
+import { actualStatus, allCharges, lookups, subscriptions, summary, type Search, searchFields } from "@/lib/queries";
+import { costBreakdown } from "@/lib/cost-breakdown";
+import { Add, displayDate, Flash, href, PageTitle, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
+import { ExpenseCharts, ExpenseMetrics, ProjectList, SupplierCosts } from "@/components/views";
 import { FormPanel } from "@/components/forms";
 
 export default async function Home({ searchParams }: { searchParams: Promise<Search> }) {
   const [access, raw] = await Promise.all([requireWorkspace(), searchParams]);
   const search = searchFields(raw);
   const month = resolveMonth(search.month);
-  const [totals, { projects, suppliers }, upcoming, recent] = await Promise.all([
-    summary(access, month), lookups(access), subscriptions(access, true), listCharges(access, month, {}),
-  ]);
+  const totals = summary(access, month);
+  const { projects, suppliers } = lookups(access);
+  const upcoming = subscriptions(access, true);
+  const costs = costBreakdown(allCharges(access, month, { status: actualStatus })).all;
+  const rate = access.data.usdReferenceRate;
   const canEdit = access.role !== "viewer";
   return <>
     <PageTitle title="ניהול העסק" description="סקירה של ההוצאות, הפרויקטים והתזרים של העסק." icon={ChartNoAxesColumnIncreasing}>
@@ -21,6 +24,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
     <Flash search={search}/>
     {canEdit && <FormPanel path="/" kind={search.add === "expense" ? "expense" : undefined} month={month} projects={projects} suppliers={suppliers}/>}
     <ExpenseMetrics totals={totals} upcoming={upcoming} home/>
+    {rate && <p className="notice">שער דולר יציג · <bdi>1 USD = {rate.quote} ILS</bdi> · {displayDate(rate.quoted)} · בנק ישראל</p>}
+    <SupplierCosts title="הוצאות החודש לפי ספק" group={costs} path="/expenses" search={{ month }}
+      action={<TextLink to={href("/expenses", { month, view: "transactions" })}>לכל התנועות</TextLink>}/>
     <ExpenseCharts totals={totals} month={month} title={`התפלגות הוצאות (${monthTitle(month)})`} trendTitle="מגמת הוצאות ותזרים"/>
     <div className="split parallel">
       <Panel title="חיובים קרובים" action={<TextLink to={href("/suppliers", { month })}>לכל החיובים</TextLink>}>
@@ -30,8 +36,5 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
         <ProjectList projects={projects.filter(item => item.status === "active").slice(0, 3)} totals={totals} month={month} compact/>
       </Panel>
     </div>
-    <Panel title="פעילות אחרונה" action={<TextLink to={href("/expenses", { month, view: "transactions" })}>לכל התנועות</TextLink>}>
-      <Charges rows={recent.rows.slice(0, 5)} compact/>
-    </Panel>
   </>;
 }

@@ -30,6 +30,7 @@ export type Alert = { id: string; code: "charge_threshold" | "verified_source_ch
 export type InboxReceipt = {
   id: string; sender: string; subject: string; receivedOn: string; originalName: string; digest: string;
   messageId: string; attachmentId: string; format?: "eml";
+  supportingInvoiceId?: string;
 };
 export type WorkspaceData = {
   version: 1;
@@ -40,6 +41,7 @@ export type WorkspaceData = {
   lastTotp: Record<string, number>;
   futureFinance?: FutureFinance;
   inboxReceipts?: InboxReceipt[];
+  usdReferenceRate?: { quote: string; quoted: string };
 };
 
 export function emptyData(): WorkspaceData {

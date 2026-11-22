@@ -8,6 +8,7 @@ import { costBreakdown } from "../src/lib/cost-breakdown";
 import { actualStatus, allCharges, unassigned, type Access } from "../src/lib/queries";
 import { emptyData, type Charge } from "../src/lib/repository";
 import { fillReferenceRates, referenceRates } from "../src/lib/reference-rates";
+import { applyPaymentDocument, parsePaymentText, readPaymentDocument } from "../src/lib/payment-documents";
 
 test("Jerusalem month coverage and currency minor units", () => {
   assert.equal(businessDate(new Date("2026-03-31T22:00:00Z")), "2026-04-01");
@@ -49,6 +50,50 @@ test("Bank of Israel rates use the latest published day, preserve existing conve
   assert.equal(manual.amount_ils_minor, 340);
   assert.equal(estimate.amount_ils_minor, null);
   assert.equal(fillReferenceRates(data, rates, "2026-11-01", "2026-11-22"), 0);
+});
+
+test("Gmail pairs invoice and paid receipt once, and Vercel never creates a second provider charge", () => {
+  const data = emptyData();
+  const doc = (id: string, domain: string) => ({
+    id, sender: "billing@" + domain, originalName: "receipt.pdf", subject: "Receipt",
+    receivedOn: "2026-11-10", digest: id, messageId: id, attachmentId: id,
+  });
+  const first = doc("invoice", "supabase.com");
+  const second = doc("receipt", "supabase.com");
+  const billed = parsePaymentText("supabase.com", "INVOICE Invoice number DEMO-0123 Invoice date Nov 9, 2026 Amount due $12.30")!;
+  const paid = parsePaymentText("supabase.com", "RECEIPT Invoice number DEMO-0123 Payment date Nov 10, 2026 Amount paid $12.30")!;
+  assert.equal(applyPaymentDocument(data, second, paid).paid, 0);
+  assert.equal(applyPaymentDocument(data, first, billed).filed, 1);
+  assert.equal(applyPaymentDocument(data, second, { ...paid, minor: 999 }).paid, 0);
+  assert.deepEqual(applyPaymentDocument(data, second, paid), { filed: 0, paid: 1, linked: 1 });
+  assert.deepEqual(applyPaymentDocument(data, second, paid), { filed: 0, paid: 0, linked: 0 });
+  assert.equal(data.charges[0].recorded_on, "2026-11-10");
+  assert.equal(data.charges[0].invoice_id, first.id);
+  assert.equal(data.invoices[0].status, "matched");
+  const vercel = parsePaymentText("vercel.com",
+    "Page 1 of 1 Invoice Invoice number DEMO-0004 Date of issue Nov 9, 2026 Vercel Inc Amount due $20.00 USD")!;
+  assert.equal(applyPaymentDocument(data, doc("vercel-invoice", "vercel.com"), vercel).filed, 1);
+  const result = applyPaymentDocument(data, doc("vercel-receipt", "vercel.com"), { ...vercel, kind: "receipt" });
+  assert.equal(result.linked, 1);
+  assert.equal(data.charges.length, 1);
+});
+
+test("Namecheap records only authenticated receipt content with matching order, charge and total", async () => {
+  const subject = "Namecheap Order Summary (Order# 123456789);";
+  const text = "Order Date : Nov 21, 2026 05:16:59 AM Order Number : 123456789 Transaction ID : 987654321 " +
+    "Initial Charge : $15.25 Final Cost : $15.25 Total Refund : N/A Approval # : ch_fixture";
+  assert.equal(parsePaymentText("namecheap.com", text.replace("Final Cost : $15.25","Final Cost : $13.25"), subject), undefined);
+  assert.equal(parsePaymentText("namecheap.com", text.replace("Total Refund : N/A","Total Refund : $1.00"), subject), undefined);
+  const source = {
+    id: "order", sender: "support@namecheap.com", subject, receivedOn: "2026-11-21", originalName: "receipt.eml",
+    digest: "order", messageId: "order", attachmentId: "original-email", format: "eml" as const,
+  };
+  const mime = Buffer.from("From: support@namecheap.com\r\nSubject: " + subject + "\r\nContent-Type: text/plain\r\n\r\n" + text);
+  const parsed = await readPaymentDocument(source, mime);
+  assert.equal(parsed?.minor, 1525);
+  const data = emptyData();
+  assert.deepEqual(applyPaymentDocument(data, source, parsed!), { filed: 1, paid: 1, linked: 0 });
+  assert.deepEqual(applyPaymentDocument(data, source, parsed!), { filed: 0, paid: 0, linked: 0 });
 });
 
 test("supplier and project totals preserve currencies, partial assignments, credits and missing FX", () => {

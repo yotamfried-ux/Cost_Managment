@@ -35,6 +35,8 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await page.getByLabel("סכום", { exact: true }).fill("123.45");
   await page.getByRole("combobox", { name: "ספק", exact: true }).selectOption({ label: "ספק בדיקה" });
   await page.getByRole("button", { name: "שמירה", exact: true }).click();
+  await expect(page.getByText("השינויים נשמרו.")).toBeVisible();
+  await page.getByRole("link", { name: "לכל התנועות", exact: true }).click();
   await expect(page.getByText("בדיקת הוצאה מקומית")).toBeVisible();
   const month = new URL(page.url()).searchParams.get("month");
   const csv = await page.request.get("/api/export?month=" + month);
@@ -97,6 +99,7 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "הוצאות החודש לפי ספק", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("dashboard-desktop.png"), fullPage: true });
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });

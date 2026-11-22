@@ -6,6 +6,7 @@ import { businessDate } from "./finance";
 import type { InboxReceipt } from "./repository";
 
 const senderSchema = z.object({ email: z.email(), dkim: z.string().regex(/^[a-z0-9.-]+$/), emailReceipt: z.boolean().optional() });
+const namecheapSender = "support@namecheap.com";
 type Config = { clientId: string; clientSecret: string; refreshToken: string; label: string; allowed: z.infer<typeof senderSchema>[] };
 export function gmailConfig(): Config | undefined {
   const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_RECEIPTS_LABEL, GMAIL_RECEIPTS_SENDERS } = process.env;
@@ -13,6 +14,9 @@ export function gmailConfig(): Config | undefined {
       !/^Label_[A-Za-z0-9_-]+$/.test(GMAIL_RECEIPTS_LABEL)) return;
   try {
     const allowed = z.array(senderSchema).min(1).max(20).parse(JSON.parse(GMAIL_RECEIPTS_SENDERS));
+    if (process.env.GMAIL_RECEIPTS_NAMECHEAP === "true" && !allowed.some(row => row.email.toLowerCase() === namecheapSender)) {
+      allowed.push({ email: namecheapSender, dkim: "namecheap.com", emailReceipt: true });
+    }
     return { clientId: GMAIL_CLIENT_ID, clientSecret: GMAIL_CLIENT_SECRET, refreshToken: GMAIL_REFRESH_TOKEN, label: GMAIL_RECEIPTS_LABEL, allowed };
   } catch {
     return;
@@ -59,6 +63,7 @@ export function isReceiptEmail(sender: string, subject: string, allowed: Config[
   if (!allowed.some(row => row.email === sender && row.emailReceipt === true)) return false;
   const title = subject.trim();
   return /^(?:your\s+)?(?:receipt|invoice)\b/i.test(title) ||
+    (sender === namecheapSender && /^Namecheap Order Summary \(Order# \d+\);?$/i.test(title)) ||
     (sender === "receipts@openrouter.ai" && /^your openrouter, inc\.? receipt \[#?\d+-\d+\]$/i.test(title));
 }
 
@@ -97,7 +102,7 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
   const packets = new Map((list.messages ?? []).map(row => [row.id, row]));
   const emailSenders = config.allowed.filter(row => row.emailReceipt);
   if (emailSenders.length) {
-    const emailQuery = `newer_than:90d {subject:receipt subject:invoice} { ${emailSenders.map(row => "from:" + row.email).join(" ")} }`;
+    const emailQuery = `newer_than:90d {subject:receipt subject:invoice subject:"Namecheap Order Summary"} { ${emailSenders.map(row => "from:" + row.email).join(" ")} }`;
     const emailParams = new URLSearchParams({ labelIds: config.label, q: emailQuery, maxResults: "20" });
     const emails = messageList.parse(await api("list", "messages?" + emailParams));
     for (const row of emails.messages ?? []) packets.set(row.id,row);

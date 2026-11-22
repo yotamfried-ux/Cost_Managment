@@ -92,10 +92,10 @@ function CostCells({ total }: { total: CostTotal }) {
   </>;
 }
 
-export function SupplierCosts({ title, group, path, search }: {
-  title: string; group?: CostBreakdown["all"]; path: string; search: Search;
+export function SupplierCosts({ title, group, path, search, action }: {
+  title: string; group?: CostBreakdown["all"]; path: string; search: Search; action?: React.ReactNode;
 }) {
-  return <Panel title={title}>
+  return <Panel title={title} action={action}>
     {group?.suppliers.size ? <DataTable headings={["ספק תשתית", "סך במטבע המקורי", "סך בש״ח", "פירוט"]}>
       {[...group.suppliers.values()].sort((a,b) => a.name.localeCompare(b.name,"he")).map(({ id, name, total }) => <tr key={id}>
         <th scope="row">{name}</th><CostCells total={total}/>

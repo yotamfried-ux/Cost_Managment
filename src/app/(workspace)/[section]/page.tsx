@@ -76,7 +76,7 @@ async function Projects({ access, month, search, edit }: View) {
 
 async function Invoices({ access, month, search, edit }: View) {
   const [directory, result] = await Promise.all([lookups(access), invoices(access, month, search)]);
-  const staged = (access.data.inboxReceipts ?? []).filter(receipt => !access.data.invoices.some(item => item.id === receipt.id));
+  const staged = (access.data.inboxReceipts ?? []).filter(receipt => !receipt.supportingInvoiceId && !access.data.invoices.some(item => item.id === receipt.id));
   const receipt = staged.find(item => item.id === search.receipt);
   const current = result.history.filter(row => row.issued_on.startsWith(month));
   const matched = current.filter(row => row.status === "matched").length;
@@ -128,6 +128,9 @@ async function Invoices({ access, month, search, edit }: View) {
         <dl className="info-list"><div><dt>מספר</dt><dd><bdi>{item.invoice_number}</bdi></dd></div><div><dt>ספק</dt><dd>{item.suppliers?.name}</dd></div>
           <div><dt>תאריך</dt><dd>{displayDate(item.issued_on)}</dd></div><div><dt>סכום</dt><dd><MoneyInCurrency amount={item.amount_minor} currency={item.currency}/></dd></div></dl>
         <a className="button" href={`/api/documents/${item.id}`}><Download size={16} aria-hidden="true"/>{item.format === "eml" ? "הורדת הודעת המקור" : "הורדת PDF מקורי"}</a>
+        {(access.data.inboxReceipts ?? []).filter(receipt => receipt.supportingInvoiceId === item.id).map(receipt =>
+          <a key={receipt.id} className="button" href={`/api/documents/${receipt.id}`}><Download size={16} aria-hidden="true"/>מסמך תומך</a>
+        )}
         {edit && item.status !== "matched" && (matches.length > 0 ? <form className="field-stack reconcile" action={mutate.bind(null, "match")}>
           <FormFields path="/invoices" month={month}/><input type="hidden" name="invoice" value={item.id}/>
           <label>התאמה להוצאה<select name="charge" required>{matches.map(row => <option value={row.id} key={row.id}>{row.description} · {displayDate(row.recorded_on)}</option>)}</select></label>
