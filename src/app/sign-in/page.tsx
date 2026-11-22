@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { signInModes, workspace } from "@/lib/session";
 import { signIn, signInShared } from "../auth-actions";
@@ -16,6 +17,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
   const { shared, personal } = signInModes();
   return <main className="auth-shell"><section className="panel auth-card">
     <Brand /><h1>כניסה לסביבת העבודה</h1>
+    <p>ניהול הוצאות, חיובי ספקים וחשבוניות של העסק במקום אחד.</p>
     {!shared && !personal && <p className="notice" role="status">מערכת ההתחברות ממתינה להגדרת גישה לסביבת העבודה.</p>}
     {error && (shared || personal) && <p className="notice" role="alert">{messages[error] ?? messages.auth}</p>}
     {shared && <form action={signInShared} className="field-stack" aria-label="כניסה עם סיסמה משותפת">
@@ -31,6 +33,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
       <Remember />
       <button className="button primary">{shared ? "כניסה לחשבון" : "כניסה"}</button>
     </form>}
+    <Link href="/privacy">מדיניות פרטיות</Link>
   </section></main>;
 }
 

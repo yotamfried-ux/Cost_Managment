@@ -169,6 +169,10 @@ input:not([type=hidden]), select { min-height: 35px; }
 .auth-card { width: min(100%,420px); padding: 25px; display: grid; gap: 16px; }
 .auth-card h1 { font-size: 25px; }
 .auth-card .brand { justify-self: start; }
+.privacy-card { width: min(100%,680px); }
+.privacy-card section { display: grid; gap: 6px; }
+.privacy-card h2 { font-size: 19px; }
+.auth-card a { text-decoration: underline; text-underline-offset: 3px; }
 .mfa-key { display: block; margin-top: 8px; padding: 9px; background: var(--mint); overflow-wrap: anywhere; }
 
 @media (max-width: 1050px) {
