@@ -160,6 +160,8 @@ test("shared login defaults to viewer, can grant owner explicitly, and revokes c
   process.env.D2R_SHARED_LOGIN_ROLE = "owner";
   const elevated = authConfig()!;
   const sharedOwnerCookie = issueSession(elevated.key,elevated.shared!);
+  assert.deepEqual(elevated.accounts, []);
+  assert.equal(readSession(elevated.key,[...elevated.accounts,elevated.shared!],ownerCookie),undefined);
   assert.equal(readSession(elevated.key,[...elevated.accounts,elevated.shared!],sharedCookie),undefined);
   assert.equal(readSession(elevated.key,[...elevated.accounts,elevated.shared!],sharedOwnerCookie)?.role,"owner");
   process.env.D2R_DISABLE_SHARED_LOGIN = "true";

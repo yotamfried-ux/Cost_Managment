@@ -14,7 +14,7 @@ const messages: Record<string, string> = {
 export default async function SignIn({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const [{ error }, session] = await Promise.all([searchParams, workspace()]);
   if (session) redirect("/");
-  const { shared, personal } = signInModes();
+  const { shared, passwordOnly, personal } = signInModes();
   return <main className="auth-shell"><section className="panel auth-card">
     <Brand /><h1>כניסה לסביבת העבודה</h1>
     <p>ניהול הוצאות, חיובי ספקים וחשבוניות של העסק במקום אחד.</p>
@@ -22,7 +22,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
     {error && (shared || personal) && <p className="notice" role="alert">{messages[error] ?? messages.auth}</p>}
     {shared && <form action={signInShared} className="field-stack" aria-label="כניסה עם סיסמה משותפת">
       <label>סיסמה<input name="password" type="password" dir="ltr" autoComplete="current-password" required /></label>
-      <Remember checked />
+      {!passwordOnly && <Remember checked />}
       <button className="button primary">כניסה</button>
     </form>}
     {personal && <form action={signIn} className="field-stack" aria-label="כניסה לחשבון אישי">

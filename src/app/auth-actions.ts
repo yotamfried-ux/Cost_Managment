@@ -42,13 +42,13 @@ export async function signInShared(form: FormData) {
   const ip = request.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || "local";
   if (!allowAttempt(ip, "shared:" + ip)) redirect("/sign-in?error=rate");
   if (!(await verifyPassword(password.data, auth.shared))) redirect("/sign-in?error=auth");
-  await finishSignIn(auth.key, auth.shared, form.get("remember") === "on");
+  await finishSignIn(auth.key, auth.shared, auth.shared.role === "owner" || form.get("remember") === "on");
 }
 
 export async function signIn(form: FormData) {
   const storage = storageConfig();
   const auth = authConfig();
-  if (!storage || !auth) redirect("/sign-in?error=config");
+  if (!storage || !auth?.accounts.length) redirect("/sign-in?error=config");
   const values = z.object({
     email: z.email().max(254).transform(value => value.toLowerCase()), password: z.string().min(1).max(200), code: z.string().regex(/^\d{6}$/),
   }).safeParse({ email: form.get("email"), password: form.get("password"), code: form.get("code") });

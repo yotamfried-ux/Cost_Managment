@@ -27,7 +27,7 @@ export function authConfig() {
     const sharedRole = process.env.D2R_SHARED_LOGIN_ROLE === "owner" ? "owner" : "viewer";
     const shared: SessionAccount | undefined = hash.success ? { email: sharedEmail, role: sharedRole, passwordHash: hash.data } : undefined;
     if (!accounts.length && !shared) return undefined;
-    return { key: Buffer.from(sessionSecret, "base64url"), accounts, shared };
+    return { key: Buffer.from(sessionSecret, "base64url"), accounts: shared?.role === "owner" ? [] : accounts, shared };
   } catch {
     return undefined;
   }

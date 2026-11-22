@@ -8,7 +8,11 @@ export const sessionCookie = "d2r_session";
 
 export function signInModes() {
   const auth = authConfig();
-  return { shared: Boolean(auth?.shared), personal: Boolean(auth?.accounts.length && storageConfig()) };
+  return {
+    shared: Boolean(auth?.shared),
+    passwordOnly: auth?.shared?.role === "owner",
+    personal: Boolean(auth?.accounts.length && storageConfig()),
+  };
 }
 
 export const workspace = cache(async () => {
