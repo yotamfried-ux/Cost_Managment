@@ -59,7 +59,7 @@ export function isReceiptEmail(sender: string, subject: string, allowed: Config[
   if (!allowed.some(row => row.email === sender && row.emailReceipt === true)) return false;
   const title = subject.trim();
   return /^(?:your\s+)?(?:receipt|invoice)\b/i.test(title) ||
-    (sender === "receipts@openrouter.ai" && /^your openrouter, inc\.? receipt \[[\d-]+\]$/i.test(title));
+    (sender === "receipts@openrouter.ai" && /^your openrouter, inc\.? receipt \[#?\d+-\d+\]$/i.test(title));
 }
 
 type GmailStage = "oauth" | "list" | "message" | "attachment";

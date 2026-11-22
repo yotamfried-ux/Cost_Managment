@@ -119,6 +119,6 @@ test("Gmail original-email import requires explicit sender opt-in and a receipt 
   assert.equal(isReceiptEmail("billing@example.com","Your receipt",allowed),false);
   assert.equal(isReceiptEmail("other@example.com","Your receipt",allowed),false);
   const openRouter = [...allowed, { email: "receipts@openrouter.ai", dkim: "openrouter.ai", emailReceipt: true }];
-  assert.equal(isReceiptEmail("receipts@openrouter.ai","Your OpenRouter, Inc receipt [123-45]",openRouter),true);
-  assert.equal(isReceiptEmail("receipt@example.com","Your OpenRouter, Inc receipt [123-45]",openRouter),false);
+  assert.equal(isReceiptEmail("receipts@openrouter.ai","Your OpenRouter, Inc receipt [#1234-5678]",openRouter),true);
+  assert.equal(isReceiptEmail("receipt@example.com","Your OpenRouter, Inc receipt [#1234-5678]",openRouter),false);
 });
