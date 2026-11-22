@@ -55,7 +55,7 @@ export function FormPanel({ kind, path, month, projects, suppliers, receipt, can
           <label>תאריך חשבונית<input type="date" name="issued" required/></label>
           {receipt ? <>
             <input type="hidden" name="receipt" value={receipt.id}/>
-            <div className="receipt-download"><span>מסמך מקור</span><a className="button" href={`/api/documents/${receipt.id}`}>הורדת PDF מהתיבה</a></div>
+            <div className="receipt-download"><span>מסמך מקור</span><a className="button" href={`/api/documents/${receipt.id}`}>{receipt.format === "eml" ? "הורדת הודעת המקור" : "הורדת PDF מהתיבה"}</a></div>
           </> : <label>קובץ PDF עד 4 MB<input type="file" name="file" accept="application/pdf" required/></label>}
           <MoneyFields required/>
         </>}

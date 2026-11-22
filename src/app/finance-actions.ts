@@ -114,7 +114,7 @@ export async function mutate(kind: string, form: FormData) {
           if (!receipt && inbox.some(row => row.digest === sha256)) throw new Error("Document exists in inbox");
           if (data.invoices.some(row => row.supplier_id === item.supplier && row.invoice_number === item.number)) throw new Error("Invoice number exists");
           const invoice: Invoice = { id, supplier_id: item.supplier, invoice_number: item.number, issued_on: item.issued,
-            currency: item.currency, amount_minor: item.minor, status: "review", sha256, original_name };
+            currency: item.currency, amount_minor: item.minor, status: "review", sha256, original_name, ...(receipt?.format ? { format: receipt.format } : {}) };
           data.invoices.unshift(invoice);
           audit(data, actor, "invoices", "INSERT", invoice);
           break;

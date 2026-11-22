@@ -5,7 +5,7 @@ import { cleanFilename, pdfMaxSize, validPdf } from "./documents";
 import { businessDate } from "./finance";
 import type { InboxReceipt } from "./repository";
 
-const senderSchema = z.object({ email: z.email(), dkim: z.string().regex(/^[a-z0-9.-]+$/) });
+const senderSchema = z.object({ email: z.email(), dkim: z.string().regex(/^[a-z0-9.-]+$/), emailReceipt: z.boolean().optional() });
 type Config = { clientId: string; clientSecret: string; refreshToken: string; label: string; allowed: z.infer<typeof senderSchema>[] };
 export function gmailConfig(): Config | undefined {
   const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_RECEIPTS_LABEL, GMAIL_RECEIPTS_SENDERS } = process.env;
@@ -29,6 +29,8 @@ const part: z.ZodType<Part> = z.lazy(() => z.object({
   parts: z.array(part).optional(),
 }));
 const message = z.object({ id, labelIds: z.array(z.string()), internalDate: z.string().regex(/^\d{10,15}$/), payload: part });
+const rawMessage = z.object({ id, raw: z.string() });
+const emailMaxSize = 1024 * 1024;
 const attachment = z.object({ data: z.string(), size: z.number().min(1).max(pdfMaxSize) });
 
 export function alignedSender(headers: Part["headers"], allowed: Config["allowed"]) {
@@ -52,6 +54,11 @@ const pdfs = (node: Part): Part[] => {
   if (isPdfAttachment(node)) return [node];
   return (node.parts ?? []).flatMap(pdfs);
 };
+
+export function isReceiptEmail(sender: string, subject: string, allowed: Config["allowed"]) {
+  return allowed.some(row => row.email === sender && row.emailReceipt === true) &&
+    /^(?:your\s+)?(?:receipt|invoice)\b/i.test(subject.trim());
+}
 
 type GmailStage = "oauth" | "list" | "message" | "attachment";
 const knownOAuthErrors = new Set(["invalid_grant", "invalid_client", "unauthorized_client", "access_denied", "invalid_scope", "temporarily_unavailable"]);
@@ -85,12 +92,20 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
   const query = `newer_than:90d has:attachment filename:pdf { ${config.allowed.map(row => "from:" + row.email).join(" ")} }`;
   const params = new URLSearchParams({ labelIds: config.label, q: query, maxResults: "20" });
   const list = messageList.parse(await api("list", "messages?" + params));
+  const packets = new Map((list.messages ?? []).map(row => [row.id, row]));
+  const emailSenders = config.allowed.filter(row => row.emailReceipt);
+  if (emailSenders.length) {
+    const emailQuery = `newer_than:90d {subject:receipt subject:invoice} { ${emailSenders.map(row => "from:" + row.email).join(" ")} }`;
+    const emailParams = new URLSearchParams({ labelIds: config.label, q: emailQuery, maxResults: "20" });
+    const emails = messageList.parse(await api("list", "messages?" + emailParams));
+    for (const row of emails.messages ?? []) packets.set(row.id,row);
+  }
   const processed = new Set(previous.map(item => item.messageId + ":" + item.attachmentId));
   const digests = new Set(previous.map(item => item.digest));
-  const counts = { messages: list.messages?.length ?? 0, visited: 0, skippedLabel: 0, skippedSender: 0,
-    skippedDate: 0, candidates: 0, missingLocator: 0, existing: 0, invalidPdf: 0, duplicatedContent: 0 };
+  const counts = { messages: packets.size, visited: 0, skippedLabel: 0, skippedSender: 0,
+    skippedDate: 0, candidates: 0, missingLocator: 0, existing: 0, invalidPdf: 0, duplicatedContent: 0, invalidEmail: 0 };
   const output: { item: InboxReceipt; bytes: Buffer }[] = [];
-  for (const packet of (list.messages ?? [])) {
+  for (const packet of packets.values()) {
     if (output.length >= 5) break;
     counts.visited++;
     const row = message.parse(await api("message", "messages/" + packet.id + "?format=full"));
@@ -100,7 +115,24 @@ export async function googleReceipts(config: Config, previous: InboxReceipt[]) {
     const parsedDate = new Date(Number(row.internalDate));
     if (!Number.isFinite(parsedDate.getTime())) { counts.skippedDate++; continue; }
     const subject = (row.payload.headers?.find(item => item.name.toLowerCase() === "subject")?.value ?? "").slice(0,200);
-    for (const pdf of pdfs(row.payload)) {
+    const pdfFiles = pdfs(row.payload);
+    if (!pdfFiles.length && isReceiptEmail(sender, subject, config.allowed)) {
+      const marker = "original-email";
+      counts.candidates++;
+      if (processed.has(row.id + ":" + marker)) { counts.existing++; continue; }
+      const original = rawMessage.parse(await api("message", "messages/" + row.id + "?format=raw"));
+      if (original.id !== row.id || original.raw.length > Math.ceil(emailMaxSize * 4 / 3) + 4) { counts.invalidEmail++; continue; }
+      const bytes = Buffer.from(original.raw, "base64url");
+      if (!bytes.length || bytes.length > emailMaxSize || !/\r?\n\r?\n/.test(bytes.toString("latin1"))) { counts.invalidEmail++; continue; }
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      if (digests.has(digest)) { counts.duplicatedContent++; continue; }
+      digests.add(digest);
+      output.push({ bytes, item: {
+        id: randomUUID(), sender, subject, receivedOn: businessDate(parsedDate),
+        originalName: `receipt-${businessDate(parsedDate)}.eml`, digest, messageId: row.id, attachmentId: marker, format: "eml",
+      } });
+    }
+    for (const pdf of pdfFiles) {
       if (output.length >= 5) break;
       counts.candidates++;
       const locator = pdf.body?.attachmentId;

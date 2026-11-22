@@ -119,7 +119,7 @@ async function Invoices({ access, month, search, edit }: View) {
       {item && <Panel title="פרטי חשבונית" action={<Link className="icon-button" href={href("/invoices", search, { invoice: undefined })} aria-label="סגירת פרטי חשבונית"><X size={17}/></Link>}>
         <dl className="info-list"><div><dt>מספר</dt><dd><bdi>{item.invoice_number}</bdi></dd></div><div><dt>ספק</dt><dd>{item.suppliers?.name}</dd></div>
           <div><dt>תאריך</dt><dd>{displayDate(item.issued_on)}</dd></div><div><dt>סכום</dt><dd><MoneyInCurrency amount={item.amount_minor} currency={item.currency}/></dd></div></dl>
-        <a className="button" href={`/api/documents/${item.id}`}><Download size={16} aria-hidden="true"/>הורדת PDF מקורי</a>
+        <a className="button" href={`/api/documents/${item.id}`}><Download size={16} aria-hidden="true"/>{item.format === "eml" ? "הורדת הודעת המקור" : "הורדת PDF מקורי"}</a>
         {edit && item.status !== "matched" && (matches.length > 0 ? <form className="field-stack reconcile" action={mutate.bind(null, "match")}>
           <FormFields path="/invoices" month={month}/><input type="hidden" name="invoice" value={item.id}/>
           <label>התאמה להוצאה<select name="charge" required>{matches.map(row => <option value={row.id} key={row.id}>{row.description} · {displayDate(row.recorded_on)}</option>)}</select></label>

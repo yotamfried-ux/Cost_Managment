@@ -110,3 +110,12 @@ test("Gmail accepts PDF-named binary attachments but verifies the actual file fo
   assert.equal(validPdf(Buffer.from("<html>not a PDF</html>")), false);
   assert.equal(validPdf(Buffer.from("%PDF-1.5\nfixture\n%%EOF")), true);
 });
+
+test("Gmail original-email import requires explicit sender opt-in and a receipt subject", async () => {
+  const { isReceiptEmail } = await import("../src/lib/gmail-receipts");
+  const allowed = [{email:"receipt@example.com",dkim:"example.com",emailReceipt:true},{email:"billing@example.com",dkim:"example.com"}];
+  assert.equal(isReceiptEmail("receipt@example.com","Your receipt from Example",allowed),true);
+  assert.equal(isReceiptEmail("receipt@example.com","Account activity",allowed),false);
+  assert.equal(isReceiptEmail("billing@example.com","Your receipt",allowed),false);
+  assert.equal(isReceiptEmail("other@example.com","Your receipt",allowed),false);
+});

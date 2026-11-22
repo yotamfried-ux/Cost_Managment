@@ -20,7 +20,7 @@ export type Charge = {
 };
 export type Invoice = {
   id: string; invoice_number: string; original_name: string; issued_on: string; supplier_id: string; currency: string;
-  amount_minor: number; status: "review" | "matched"; sha256: string;
+  amount_minor: number; status: "review" | "matched"; sha256: string; format?: "eml";
 };
 export type Subscription = { id: string; supplier_id: string; label: string; amount_minor: number | null; currency: string; cycle: string; next_charge_on: string | null; status: string };
 export type Account = { id: string; provider: string; external_account_id: string; supplier_id: string; last_synced_at: string | null };
@@ -29,7 +29,7 @@ export type Audit = { id: string; entity: string; operation: "INSERT" | "UPDATE"
 export type Alert = { id: string; code: "charge_threshold" | "verified_source_changed"; reference: string; created_at: string };
 export type InboxReceipt = {
   id: string; sender: string; subject: string; receivedOn: string; originalName: string; digest: string;
-  messageId: string; attachmentId: string;
+  messageId: string; attachmentId: string; format?: "eml";
 };
 export type WorkspaceData = {
   version: 1;
