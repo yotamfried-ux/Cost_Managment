@@ -141,11 +141,11 @@ test("Git storage uses non-forced ref updates and encrypts both blobs", async t 
   assert.equal(calls.filter(path => path.startsWith("PATCH")).length,2);
 });
 
-test("the shared login kill switch revokes existing shared cookies without disabling MFA accounts", async t => {
+test("shared login defaults to viewer, can grant owner explicitly, and revokes cookies when disabled", async t => {
   const key = randomBytes(32).toString("base64url");
   const password = await passwordHash("fixture-shared-password");
   const owner = { email: "owner@d2r.test", role: "owner" as const, passwordHash: password, totpSecret: encodeBase32(randomBytes(20)) };
-  const env = { D2R_SESSION_SECRET: key, D2R_AUTH_ACCOUNTS: JSON.stringify([owner]), D2R_SHARED_PASSWORD_HASH: password, D2R_DISABLE_SHARED_LOGIN: "false" };
+  const env = { D2R_SESSION_SECRET: key, D2R_AUTH_ACCOUNTS: JSON.stringify([owner]), D2R_SHARED_PASSWORD_HASH: password, D2R_SHARED_LOGIN_ROLE: "", D2R_DISABLE_SHARED_LOGIN: "false" };
   const previous = Object.fromEntries(Object.keys(env).map(name => [name,process.env[name]]));
   t.after(() => {
     for (const [name,value] of Object.entries(previous)) {
@@ -157,10 +157,15 @@ test("the shared login kill switch revokes existing shared cookies without disab
   const sharedCookie = issueSession(enabled.key,enabled.shared!);
   const ownerCookie = issueSession(enabled.key,owner);
   assert.equal(readSession(enabled.key,[...enabled.accounts,enabled.shared!],sharedCookie)?.role,"viewer");
+  process.env.D2R_SHARED_LOGIN_ROLE = "owner";
+  const elevated = authConfig()!;
+  const sharedOwnerCookie = issueSession(elevated.key,elevated.shared!);
+  assert.equal(readSession(elevated.key,[...elevated.accounts,elevated.shared!],sharedCookie),undefined);
+  assert.equal(readSession(elevated.key,[...elevated.accounts,elevated.shared!],sharedOwnerCookie)?.role,"owner");
   process.env.D2R_DISABLE_SHARED_LOGIN = "true";
   const disabled = authConfig()!;
   assert.equal(disabled.shared,undefined);
-  assert.equal(readSession(disabled.key,disabled.accounts,sharedCookie),undefined);
+  assert.equal(readSession(disabled.key,disabled.accounts,sharedOwnerCookie),undefined);
   assert.equal(readSession(disabled.key,disabled.accounts,ownerCookie)?.role,"owner");
 });
 
