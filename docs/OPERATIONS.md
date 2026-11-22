@@ -33,6 +33,8 @@ For Gmail, authorize a read-only OAuth token against the intended mailbox. Confi
 
 Each API cost has a stable billing key. A replay of the same version does not duplicate ledger entries. Changed provider totals retain prior provenance and are flagged if the charge has already been verified. Amount/date scope varies by vendor. Reconciliation currently matches a single charge to a single invoice and offers candidate selection from the invoice month.
 
+The daily cost sync also fills missing USD, EUR and GBP conversions for verified and provider charges in the current and previous eleven months. It uses the latest Bank of Israel representative rate published on or before the charge date, up to seven days prior. Original amounts and existing conversions are preserved. These conversions are reporting values and do not record the amount charged by a card issuer or bank.
+
 ## Release and open scope
 
 Set `D2R_SHARED_PASSWORD_HASH` to a salted password hash to enable password-only access. It defaults to viewer access. Set `D2R_SHARED_LOGIN_ROLE=owner` only for a dedicated single-user deployment where possession of the password should grant full ownership permissions. With owner password sign-in active, the single-field form automatically remembers the browser for 30 days through an HttpOnly session cookie, and personal TOTP sign-in and personal sessions are disabled. Changing the role or password hash invalidates existing password-only sessions. Set `D2R_DISABLE_SHARED_LOGIN=true` and redeploy to suspend password-only access, invalidate its sessions, and restore configured personal TOTP sign-in. With the ledger configuration absent, password-only sign-in can access an empty workspace that is explicitly marked read-only.

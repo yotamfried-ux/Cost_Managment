@@ -7,6 +7,7 @@ import { anthropicConnector, githubConnector, openAiConnector } from "../src/lib
 import { costBreakdown } from "../src/lib/cost-breakdown";
 import { actualStatus, allCharges, unassigned, type Access } from "../src/lib/queries";
 import { emptyData, type Charge } from "../src/lib/repository";
+import { fillReferenceRates, referenceRates } from "../src/lib/reference-rates";
 
 test("Jerusalem month coverage and currency minor units", () => {
   assert.equal(businessDate(new Date("2026-03-31T22:00:00Z")), "2026-04-01");
@@ -19,6 +20,35 @@ test("Jerusalem month coverage and currency minor units", () => {
 
 test("CSV neutralizes formulas and escapes values", () => {
   assert.equal(safeCsv([[" =SUM(A1)", 'a,"b"', -17, null, "\tspreadsheet"]]), '\uFEFF"\' =SUM(A1)","a,""b""","-17","","\'\tspreadsheet"');
+});
+
+test("Bank of Israel rates use the latest published day, preserve existing conversions, and are idempotent", async t => {
+  t.mock.method(globalThis, "fetch", async (url: URL) => {
+    assert.equal(url.hostname, "edge.boi.gov.il");
+    assert.equal(url.searchParams.get("startPeriod"), "2026-11-01");
+    return new Response([
+      "SERIES_CODE,FREQ,BASE_CURRENCY,COUNTER_CURRENCY,UNIT_MEASURE,DATA_TYPE,DATA_SOURCE,TIME_COLLECT,CONF_STATUS,PUB_WEBSITE,UNIT_MULT,COMMENTS,TIME_PERIOD,OBS_VALUE,RELEASE_STATUS",
+      "RER_USD_ILS,D,USD,ILS,ILS,OF00,BOI_MRKT,V,F,Y,0,,2026-11-06,3.194,YP",
+      "RER_USD_ILS,D,USD,ILS,ILS,OF00,BOI_MRKT,V,F,Y,0,,2026-11-09,3.171,YP",
+    ].join("\n"), { headers: { "content-type": "text/csv" } });
+  });
+  const rates = await referenceRates([{ currency: "USD", date: "2026-11-08" }, { currency: "USD", date: "2026-11-09" }]);
+  const data = emptyData();
+  const original: Charge = {
+    id: "usd", description: "provider charge", recorded_on: "2026-11-08", amount_minor: 100, currency: "USD",
+    amount_ils_minor: null, evidence: "provider", supplier_id: null, category: "cloud", project_id: null,
+    source: "provider", request_id: "fixture", invoice_id: null,
+  };
+  const manual = { ...original, id: "manual", amount_ils_minor: 340, exchange_rate: { quote: "3.4", date: "2026-11-06", source: "manual" } };
+  const estimate = { ...original, id: "estimate", evidence: "estimate" as const };
+  data.charges.push(original, manual, estimate);
+  assert.equal(fillReferenceRates(data, rates, "2026-11-01", "2026-11-22"), 1);
+  assert.equal(original.amount_minor, 100);
+  assert.equal(original.amount_ils_minor, 319);
+  assert.equal(original.exchange_rate?.date, "2026-11-06");
+  assert.equal(manual.amount_ils_minor, 340);
+  assert.equal(estimate.amount_ils_minor, null);
+  assert.equal(fillReferenceRates(data, rates, "2026-11-01", "2026-11-22"), 0);
 });
 
 test("supplier and project totals preserve currencies, partial assignments, credits and missing FX", () => {

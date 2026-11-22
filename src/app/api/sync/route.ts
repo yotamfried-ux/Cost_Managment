@@ -4,6 +4,7 @@ import { connectors, type ProviderCost } from "@/lib/connectors";
 import { monthOffset } from "@/lib/finance";
 import { ingestCost, registerVercelBilling } from "@/lib/ledger";
 import { LedgerRepository, storageConfig, type Run } from "@/lib/repository";
+import { fillReferenceRates, needsReferenceRate, referenceRates } from "@/lib/reference-rates";
 
 export const maxDuration = 60;
 
@@ -21,7 +22,6 @@ export async function GET(request: Request) {
     data = await ledger.transaction(current => ({ result: current, changed: registerVercelBilling(current, teamId) }));
   }
   const accounts = data.accounts.filter(item => adapters.has(item.provider));
-  if (!accounts.length) return Response.json({ checked: 0, failed: 0 });
   if (accounts.length > 10) return new Response(null, { status: 503 });
 
   const today = new Date().toISOString().slice(0,10);
@@ -54,7 +54,12 @@ export async function GET(request: Request) {
     };
     return { run, costs };
   }));
-  const failed = await ledger.transaction(current => {
+  const earliestRateDate = monthOffset(month,-11) + "-01";
+  const rates = await referenceRates([
+    ...data.charges.filter(row => needsReferenceRate(row, earliestRateDate, today)).map(row => ({ currency: row.currency, date: row.recorded_on })),
+    ...batches.flatMap(batch => batch.costs.map(row => ({ currency: row.currency, date: row.start }))),
+  ]);
+  const result = await ledger.transaction(current => {
     for (const batch of batches) {
       const account = current.accounts.find(item => item.id === batch.run.provider_account_id);
       if (!account) continue;
@@ -67,7 +72,10 @@ export async function GET(request: Request) {
       current.runs.unshift(batch.run);
     }
     current.runs.sort((a,b) => b.started_at.localeCompare(a.started_at));
-    return { result: batches.filter(batch => batch.run.status === "failed").length };
+    const ratesUpdated = fillReferenceRates(current, rates, earliestRateDate, today);
+    const failed = batches.filter(batch => batch.run.status === "failed").length;
+    return { result: { checked: accounts.length, failed, ratesUpdated }, changed: batches.length > 0 || ratesUpdated > 0 };
   });
-  return Response.json({ checked: accounts.length, failed }, { status: failed ? 502 : 200 });
+  console.info(JSON.stringify({ event: "cost_sync_completed", ...result }));
+  return Response.json(result, { status: result.failed ? 502 : 200 });
 }

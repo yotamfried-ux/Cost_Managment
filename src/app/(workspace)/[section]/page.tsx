@@ -101,10 +101,10 @@ async function Invoices({ access, month, search, edit }: View) {
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/invoices" kind={search.add === "invoice" ? "invoice" : undefined} month={month} receipt={receipt}/>}
     <Metrics metrics={[
-      { label: "מסמכים שהתקבלו", value: current.length, detail: monthTitle(month), icon: FileText, tone: "coral" },
+      { label: "מסמכים שתויקו", value: current.length, detail: monthTitle(month), icon: FileText, tone: "coral" },
       { label: "חשבוניות מותאמות", value: matched, detail: "מסמכים שמקושרים להוצאה", icon: CircleCheck },
       { label: "ממתינות להתאמה", value: current.length - matched, detail: "חשבוניות שטרם שויכו להוצאה", icon: Activity },
-      { label: "מסמכים חסרים", value: "—", detail: "בהתאם למקורות החיוב המחוברים", icon: TriangleAlert, tone: "coral" },
+      { label: "מסמכים מ־Gmail שממתינים לתיוק", value: staged.length, detail: "תיבת המסמכים בכל התקופות", icon: TriangleAlert, tone: "coral" },
     ]}/>
     <div className="split charts-row">
       <Panel title="חשבוניות לפי מקור"><Distribution rows={[...bySupplier].map(([name,total]) => ({ name,total }))} units="number" label="סה״כ מסמכים"/></Panel>
