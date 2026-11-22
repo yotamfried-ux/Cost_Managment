@@ -4,6 +4,9 @@ import { businessDate, minorUnits, monthOffset, resolveMonth, safeCsv } from "..
 import { PaymentsDisabled, ProviderRegistry, receiveVerifiedEvent, reconcilePayment } from "../src/lib/plugins";
 import { vercelConnector } from "../src/lib/vercel-billing";
 import { anthropicConnector, githubConnector, openAiConnector } from "../src/lib/connectors";
+import { costBreakdown } from "../src/lib/cost-breakdown";
+import { actualStatus, allCharges, unassigned, type Access } from "../src/lib/queries";
+import { emptyData, type Charge } from "../src/lib/repository";
 
 test("Jerusalem month coverage and currency minor units", () => {
   assert.equal(businessDate(new Date("2026-03-31T22:00:00Z")), "2026-04-01");
@@ -16,6 +19,36 @@ test("Jerusalem month coverage and currency minor units", () => {
 
 test("CSV neutralizes formulas and escapes values", () => {
   assert.equal(safeCsv([[" =SUM(A1)", 'a,"b"', -17, null, "\tspreadsheet"]]), '\uFEFF"\' =SUM(A1)","a,""b""","-17","","\'\tspreadsheet"');
+});
+
+test("supplier and project totals preserve currencies, partial assignments, credits and missing FX", () => {
+  const data = emptyData();
+  const supplier = "10000000-0000-4000-8000-000000000001";
+  const project = "20000000-0000-4000-8000-000000000001";
+  data.suppliers.push({ id: supplier, name: "Infrastructure", category: "cloud" });
+  const base: Charge = {
+    id: "usd", description: "daily cost", recorded_on: "2026-11-10", amount_minor: 101, currency: "USD",
+    amount_ils_minor: null, evidence: "provider", supplier_id: supplier, category: "cloud", project_id: null,
+    source: "provider", request_id: "fixture", invoice_id: null, allocations: [{ projectId: project, basisPoints: 6000 }],
+  };
+  data.charges.push(base,
+    { ...base, id: "credit", amount_minor: -1 },
+    { ...base, id: "ils", amount_minor: 400, amount_ils_minor: 400, currency: "ILS", project_id: project, allocations: undefined },
+    { ...base, id: "estimate", evidence: "estimate", amount_minor: 9999 },
+    { ...base, id: "other-month", recorded_on: "2026-10-20" },
+  );
+  const access: Access = { data, ledger: null, role: "owner", user: { email: "fixture@d2r.test" } };
+  const rows = allCharges(access, "2026-11", { status: actualStatus });
+  const groups = costBreakdown(rows);
+  const supplierTotal = groups.all.suppliers.get(supplier)!.total;
+  assert.deepEqual(supplierTotal.currencies, new Map([["USD",100],["ILS",400]]));
+  assert.equal(supplierTotal.ils, 400);
+  assert.equal(supplierTotal.missingFx, true);
+  assert.deepEqual(groups.projects.get(project)?.total.currencies, new Map([["USD",60],["ILS",400]]));
+  assert.deepEqual(groups.projects.get(unassigned)?.total.currencies, new Map([["USD",40]]));
+  const uncategorized = allCharges(access, "2026-11", { project: unassigned, status: actualStatus });
+  assert.equal(uncategorized.length, 2);
+  assert.equal(uncategorized.reduce((sum, row) => sum + (row.project_share_minor ?? 0), 0), 40);
 });
 
 test("disabled plugin cannot act and rejects before writing webhook inbox", async () => {

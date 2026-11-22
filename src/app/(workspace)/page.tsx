@@ -30,7 +30,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
         <ProjectList projects={projects.filter(item => item.status === "active").slice(0, 3)} totals={totals} month={month} compact/>
       </Panel>
     </div>
-    <Panel title="פעילות אחרונה" action={<TextLink to={href("/expenses", { month })}>לכל התנועות</TextLink>}>
+    <Panel title="פעילות אחרונה" action={<TextLink to={href("/expenses", { month, view: "transactions" })}>לכל התנועות</TextLink>}>
       <Charges rows={recent.rows.slice(0, 5)} compact/>
     </Panel>
   </>;

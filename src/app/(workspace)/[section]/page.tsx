@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
-import { allCharges, invoices, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields } from "@/lib/queries";
+import { actualStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
+import { costBreakdown } from "@/lib/cost-breakdown";
 import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { Distribution, Trend } from "@/components/charts";
-import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, ProjectDistribution, ProjectList, ProjectMetrics } from "@/components/views";
+import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel } from "@/components/forms";
 
 type View = { access: Access; search: Search; month: string; edit: boolean };
@@ -32,8 +33,14 @@ async function Expenses({ access, month, search, edit }: View) {
     summary(access, month), subscriptions(access, true), lookups(access), listCharges(access, month, search),
   ]);
   const fxCandidates = result.rows.filter(row => row.currency !== "ILS" && row.amount_minor !== null);
+  const detailed = search.view === "transactions";
+  const scoped = isId(search.project) || search.project === unassigned;
+  const costs = detailed ? null : costBreakdown(allCharges(access, month, { ...search, status: search.status || actualStatus }));
+  const group = scoped ? costs?.projects.get(search.project!) : costs?.all;
   return <>
     <PageTitle title="הוצאות" description="מעקב אחר הוצאות העסק לפי פרויקטים, קטגוריות וספקים." icon={Database}>
+      <Link className="button" href={href("/expenses", search, { view: detailed ? undefined : "transactions", page: undefined, status: detailed && search.status === actualStatus ? undefined : search.status })}>{detailed ? "סיכום לפי ספק" : "פירוט תנועות"}</Link>
+      <Link className="button" href={href("/projects", { month })}>עלויות לפי פרויקט</Link>
       <Export search={search}/>
       {edit && result.rows.length > 0 && directory.projects.length > 0 && <Link className="button" href={href("/expenses", search, { add: "allocation" })}>חלוקת עלויות</Link>}
       {edit && fxCandidates.length > 0 && <Link className="button" href={href("/expenses", search, { add: "fx" })}>עדכון שער המרה</Link>}
@@ -42,11 +49,11 @@ async function Expenses({ access, month, search, edit }: View) {
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? result.rows : fxCandidates}/>}
     <ExpenseMetrics totals={totals} upcoming={upcoming}/>
-    <ExpenseCharts totals={totals} month={month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית"/>
     <Filters {...directory} path="/expenses" search={search}/>
-    <Panel title={`רשימת הוצאות (${result.count})`}>
-      <Charges rows={result.rows}/><Pagination path="/expenses" search={search} total={result.count}/>
-    </Panel>
+    {detailed ? <Panel title={`רשימת הוצאות (${result.count})`}>
+      <Charges rows={result.rows} projectShare={scoped}/><Pagination path="/expenses" search={search} total={result.count}/>
+    </Panel> : <SupplierCosts title={search.project === unassigned ? "עלויות ללא שיוך לפי ספק" : "סיכום חודשי לפי ספק תשתית"} group={group} path="/expenses" search={search}/>}
+    <ExpenseCharts totals={totals} month={month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית"/>
   </>;
 }
 
@@ -59,6 +66,7 @@ async function Projects({ access, month, search, edit }: View) {
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/projects" kind={search.add === "project" ? "project" : undefined} month={month}/>}
     <ProjectMetrics projects={directory.projects} totals={totals}/>
+    <ProjectCosts groups={costBreakdown(allCharges(access, month, { status: actualStatus })).projects} projects={directory.projects} month={month}/>
     <ProjectList projects={directory.projects} totals={totals} month={month}/>
     <div className="split parallel"><Panel title="חלוקת עלויות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects}/></Panel>
       <Panel title="פרויקטים פעילים"><ProjectList projects={directory.projects.filter(row => row.status === "active")} totals={totals} month={month} compact/></Panel>
@@ -153,7 +161,7 @@ async function Suppliers({ access, month, search, edit }: View) {
     <Panel title="רשימת ספקים" action={<form className="small-filter" action="/suppliers"><input type="hidden" name="month" value={month}/>
       <input name="q" type="search" aria-label="חיפוש ספק" placeholder="חיפוש ספק..." defaultValue={search.q}/><button className="button">חיפוש</button></form>}>
       {filtered.length ? <DataTable headings={["ספק","קטגוריה","הוצאות בתקופה"]}>{filtered.map(row => <tr key={row.id}>
-        <td>{row.name}</td><td><Chip>{row.category}</Chip></td><td><TextLink to={href("/expenses",{month,supplier:row.id})}>הצגת הוצאות</TextLink></td>
+        <td>{row.name}</td><td><Chip>{row.category}</Chip></td><td><TextLink to={href("/expenses",{month,supplier:row.id})}>סיכום הוצאות</TextLink></td>
       </tr>)}</DataTable> : <Blank>אין ספקים להצגה.</Blank>}
     </Panel>
     <Panel title="מנויים וחידושים"><SubscriptionRows rows={all}/></Panel>

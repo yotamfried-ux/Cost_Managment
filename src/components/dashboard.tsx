@@ -65,12 +65,13 @@ export function DataTable({ headings, children }: { headings: string[]; children
 
 export function Charges({ rows, compact = false, projectShare = false }: { rows: Charge[]; compact?: boolean; projectShare?: boolean }) {
   if (!rows.length) return <Blank>אין הוצאות שתואמות לתקופה ולמסננים.</Blank>;
-  return <DataTable headings={["תאריך","ספק","תיאור","פרויקט",...(compact ? [] : ["קטגוריה"]),"סכום",...(projectShare ? ["חלק הפרויקט בש״ח"] : []),"סטטוס","מסמך"]}>
+  return <DataTable headings={["תאריך","ספק","תיאור","פרויקט",...(compact ? [] : ["קטגוריה"]),"סכום",...(projectShare ? ["חלק יחסי במטבע המקורי","חלק יחסי בש״ח"] : []),"סטטוס","מסמך"]}>
     {rows.map(row => <tr key={row.id}>
       <td>{displayDate(row.recorded_on)}</td><td>{row.suppliers?.name ?? absent}</td><td>{row.description}</td>
       <td>{row.cost_allocations.map(item => item.projects?.name).filter(Boolean).join(", ") || absent}</td>
       {!compact && <td><Chip>{row.category}</Chip></td>}
       <td><bdi>{row.amount_minor === null ? absent : formatMoney(row.amount_minor, row.currency)}</bdi></td>
+      {projectShare && <td><bdi>{row.project_share_minor == null ? absent : formatMoney(row.project_share_minor, row.currency)}</bdi></td>}
       {projectShare && <td><bdi>{formatAmount(row.project_share_ils)}</bdi></td>}
       <td><Chip tone={row.evidence === "verified" ? "good" : row.evidence === "estimate" ? "pending" : "neutral"}>{evidenceLabels[row.evidence]}</Chip></td>
       <td>{row.reconciliation_matches ? <Link className="icon-button" href={`/api/documents/${row.reconciliation_matches.invoice_id}`} aria-label="הורדת מסמך מקור"><FileText size={15}/></Link> : absent}</td>

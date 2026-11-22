@@ -5,9 +5,9 @@ import type { Charge as StoredCharge, Invoice as StoredInvoice, Subscription as 
 export type { Project, Supplier } from "./repository";
 
 export type Access = Awaited<ReturnType<typeof requireWorkspace>>;
-export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; receipt?: string; add?: string; period?: string };
+export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; receipt?: string; add?: string; period?: string; view?: string };
 export function searchFields(input: Search): Search {
-  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","receipt","add","period"];
+  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","receipt","add","period","view"];
   return Object.fromEntries(supported.filter(key => typeof input[key] === "string").map(key => [key, input[key]?.slice(0,240)]));
 }
 
@@ -15,6 +15,7 @@ export type Charge = StoredCharge & {
   suppliers: { name: string } | null;
   cost_allocations: { projects: { name: string } | null }[];
   reconciliation_matches: { invoice_id: string } | null;
+  project_share_minor?: number | null;
   project_share_ils?: number | null;
 };
 export type Invoice = StoredInvoice & { suppliers: { name: string } | null };
@@ -30,6 +31,8 @@ export type Summary = {
 };
 
 export const pageSize = 12;
+export const unassigned = "unassigned";
+export const actualStatus = "actual";
 export const pageNumber = (value?: string) => /^([1-9]\d{0,3})$/.test(value ?? "") ? Number(value) : 1;
 export const isId = (value?: string) => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const lower = (value?: string) => value?.trim().slice(0, 100).toLowerCase() ?? "";
@@ -90,17 +93,30 @@ export function allCharges({ data }: Access, month: string, filters: Search, mon
   const term = lower(filters.q);
   const suppliers = new Map(data.suppliers.map(row => [row.id,row.name]));
   const projects = new Map(data.projects.map(row => [row.id,row.name]));
+  const project = filters.project === unassigned ? "" : isId(filters.project) ? filters.project : undefined;
+  const supplier = filters.supplier === unassigned ? null : isId(filters.supplier) ? filters.supplier : undefined;
   return data.charges.filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
-      row.description.toLowerCase().includes(term) && (!isId(filters.supplier) || filters.supplier === row.supplier_id) &&
-      (!isId(filters.project) || chargeShares(row).some(share => share.projectId === filters.project)) && (!filters.category || filters.category === row.category) &&
-      (!filters.status || filters.status === row.evidence))
+      row.description.toLowerCase().includes(term) && (supplier === undefined || supplier === row.supplier_id) &&
+      (!filters.category || filters.category === row.category) &&
+      (!filters.status || (filters.status === actualStatus ? row.evidence === "verified" || row.evidence === "provider" : filters.status === row.evidence)))
+    .filter(row => {
+      if (project === undefined) return true;
+      const shares = chargeShares(row);
+      return project ? shares.some(share => share.projectId === project) : shares.reduce((sum, share) => sum + share.basisPoints, 0) < 10_000;
+    })
     .sort((a,b) => chronological(filters.sort)(a.recorded_on,b.recorded_on) || a.id.localeCompare(b.id))
     .map(row => ({
       ...row, suppliers: row.supplier_id ? { name: suppliers.get(row.supplier_id) ?? "" } : null,
       cost_allocations: chargeShares(row).map(({ projectId }) => ({ projects: { name: projects.get(projectId) ?? "" } })),
       reconciliation_matches: row.invoice_id ? { invoice_id: row.invoice_id } : null,
-      project_share_ils: filters.project ? (row.amount_ils_minor === null ? null : splitAmount(row.amount_ils_minor,chargeShares(row)).get(filters.project) ?? null) : undefined,
+      project_share_minor: shareAmount(row, row.amount_minor, project),
+      project_share_ils: shareAmount(row, row.amount_ils_minor, project),
     }));
+}
+
+function shareAmount(row: StoredCharge, amount: number | null, project?: string) {
+  if (project === undefined) return;
+  return amount === null ? null : splitAmount(amount, chargeShares(row)).get(project) ?? null;
 }
 
 export function listCharges(access: Access, month: string, filters: Search) {

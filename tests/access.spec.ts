@@ -68,6 +68,10 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await expect(page.getByRole("link", { name: "GMAIL-TEST-2" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "מסמכים מ־Gmail הממתינים לבדיקה" })).toHaveCount(0);
   await page.goto("/expenses?month=" + month);
+  await expect(page.getByRole("heading", { name: "סיכום חודשי לפי ספק תשתית" })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: "ספק בדיקה", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /רשימת הוצאות/ })).toHaveCount(0);
+  await page.getByRole("row", { name: /ספק בדיקה/ }).getByRole("link", { name: "פירוט חיובים" }).click();
   await expect(page.getByRole("cell", { name: "מאומת", exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "חלוקת עלויות", exact: true }).click();
@@ -85,9 +89,11 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await page.goto("/projects");
+  await expect(page.getByRole("heading", { name: "עלות חודשית לפי פרויקט ותשתית" })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: "ללא שיוך לפרויקט", exact: true })).toBeVisible();
   await page.getByRole("link", { name: /פרויקט בדיקה/ }).first().click();
   await expect(page.getByRole("heading", { name: "פרויקט בדיקה" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: /74\.07/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /ספק בדיקה/ }).getByRole("cell", { name: /74\.07/ })).toHaveCount(2);
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
