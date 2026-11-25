@@ -1,5 +1,7 @@
 # Design inventory / asset provenance
 
+For implementation, the owner explicitly approved using the screenshots attached to the build request. The JPEGs are the visual references for this build. The original PNG files below remain absent from Git.
+
 The owner supplied a screenshot of the **approved homepage**, title "ניהול העסק", which is the single binding visual reference. It was uploaded in the ChatGPT conversation on 21 Nov 2026; the original reference image is not reproduced from memory. Target binary path:
 
 \`design/reference/approved-home.png\` (**pending binary transfer, do not assert it is present**).

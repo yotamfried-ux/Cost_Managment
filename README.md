@@ -1,23 +1,18 @@
 # D2R Management
 
-**Repository:** \`Cost_Managment\` · **Product UI name:** **D2R Management**.
+מערכת פרטית לניהול הוצאות, מסמכים ו־FinOps בעברית. האפליקציה מבוססת על תמונות העיצוב שסיפק בעל המוצר.
 
-Private, Hebrew RTL Finance OS for software projects and a future Israeli business. Tracks provider bills, API use, invoices/receipts, recurring charges, project cost allocation and later revenue and customer management.
+## Local development
 
-**Status:** design/specification phase; **no application code built or deployed yet**.
+Use Node.js 24 and `npm ci`. Run `npm run dev` for the app or `npm run build` for the production build. To use an isolated local ledger, create account credentials, set the variables from `.env.example`, and set `D2R_LOCAL_DATA_DIR` to a private writable absolute path outside the repository. This mode is available only locally. Vercel uses GitHub-backed storage.
 
-## Documents
-- [Product requirements & accepted decisions](docs/PRODUCT-SPEC.md)
-- [Approved visual design contract](docs/DESIGN-SYSTEM.md)
-- [Connector, payment plugin and deployment architecture](docs/INTEGRATIONS-ARCHITECTURE.md)
-- [Codex build & Vercel deployment prompt](docs/CODEX-BUILD-PROMPT.md)
-- [Design asset index and provenance](design/README.md)
+Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. For authenticated browser tests, set up a fresh disposable fixture with `GITHUB_ENV=/tmp/d2r-test-env npx tsx tests/local-fixture.ts`. Read those variables from the generated file into the test runner without printing them, then run `npm run e2e`. The fixture has owner and viewer accounts and keeps test data out of the Git repository. GitHub CI publishes browser reports and desktop and mobile evidence.
 
-## Selected visual direction
-The owner-approved **"ניהול העסק" screenshot** supplied 21 Nov 2026 is the visual source of truth; do not replace it with unrelated concept art. Subpages must use the same ivory/teal/coral styling, right sidebar, white rounded cards, data density, and chart grammar. Product displayed name is D2R Management even when the screenshot still displays old repo name.
+## Data and permissions
 
-## Planned deployment
-Vercel new project linked to this exact existing repository, future hostname \`finance.d2ryf.com\`, DNS target to be retrieved from Vercel **after** project creation. No deployment or production access currently claimed.
+- The ledger and PDF originals are encrypted by the server before writing to the private repository. Only the separate data branches carry finance data, with independent keys for Preview and Production.
+- A finance session requires a password and TOTP. The server validates the current configured role and serves downloads only to authenticated users. Viewer accounts cannot write.
+- Manual expenses start as estimate or missing. Reconciliation with an original PDF verifies a matching expense. API results remain provider data. FX conversion uses a dated rate with a recorded source. Missing conversion rates are visible and never silently mixed into ILS totals.
+- The payment and accounting-document provider contracts remain disabled. No live checkout, refund, or official invoice issuance is available.
 
-## Finance safety
-No billing or invoice numbers in generated mockup screens should be mistaken for actual money. Claude Pro amount and Gemini API spend require actual verification. Payment & invoicing provider remains to be selected; modular adapters only.
+See [operations, configuration, and remaining scope](docs/OPERATIONS.md).
