@@ -5,6 +5,7 @@ import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
 import { actualStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
 import { costBreakdown } from "@/lib/cost-breakdown";
+import { monthlyForecast } from "@/lib/monthly-forecast";
 import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
@@ -48,7 +49,7 @@ async function Expenses({ access, month, search, edit }: View) {
     </PageTitle>
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? result.rows : fxCandidates}/>}
-    <ExpenseMetrics totals={totals} upcoming={upcoming}/>
+    <ExpenseMetrics totals={totals} upcoming={upcoming} forecast={monthlyForecast(access.data, month)}/>
     <MonthlySubscriptions rows={subscriptions(access)} month={month}/>
     <Filters {...directory} path="/expenses" search={search}/>
     {detailed ? <Panel title={`רשימת הוצאות (${result.count})`}>

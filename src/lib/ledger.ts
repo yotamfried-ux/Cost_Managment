@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { ProviderCost } from "./connectors";
 import type { Charge, Role, WorkspaceData } from "./repository";
+import { convertToIlsMinor } from "./finance";
 
 export function assertWriter(role: Role) {
   if (role === "viewer") throw new Error("permission");
@@ -47,13 +48,7 @@ export function matchInvoice(data: WorkspaceData, actor: string, invoiceId: stri
 
 export function applyExchangeRate(charge: Charge, input: { quote: string; quoted: string; source: string }) {
   if (charge.currency === "ILS" || charge.amount_minor === null || input.quoted > charge.recorded_on || Number(input.quote) <= 0) throw new Error("Invalid rate");
-  const digits = new Intl.NumberFormat("en", { style: "currency", currency: charge.currency }).resolvedOptions().maximumFractionDigits ?? 2;
-  const [whole, fraction = ""] = input.quote.split(".");
-  const scale = 10n ** BigInt(digits + fraction.length);
-  const amount = BigInt(Math.abs(charge.amount_minor));
-  const numerator = amount * BigInt(whole + fraction) * 100n;
-  const minor = Math.sign(charge.amount_minor) * Number((numerator + scale / 2n) / scale);
-  if (!Number.isSafeInteger(minor)) throw new Error("Conversion overflow");
+  const minor = convertToIlsMinor(charge.amount_minor, charge.currency, input.quote);
   charge.exchange_rate = { quote: input.quote, date: input.quoted, source: input.source };
   charge.amount_ils_minor = minor;
 }

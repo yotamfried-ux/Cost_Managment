@@ -19,6 +19,16 @@ export function minorUnits(value: string, currency: Currency): number {
   return Number(whole) * 10 ** digits + Number(fraction.padEnd(digits, "0"));
 }
 
+export function convertToIlsMinor(amountMinor: number, currency: string, quote: string): number {
+  const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  const [whole, fraction = ""] = quote.split(".");
+  const scale = 10n ** BigInt(digits + fraction.length);
+  const numerator = BigInt(Math.abs(amountMinor)) * BigInt(whole + fraction) * 100n;
+  const converted = Math.sign(amountMinor) * Number((numerator + scale / 2n) / scale);
+  if (!Number.isSafeInteger(converted)) throw new Error("Conversion overflow");
+  return converted;
+}
+
 export function businessDate(now = new Date()) {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }

@@ -22,6 +22,7 @@ await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(da
   data.suppliers.push({ id: supplierId, name: "ספק בדיקה", category: "כלים עסקיים" });
   data.subscriptions.push({ id: randomUUID(), supplier_id: supplierId, label: "מנוי בדיקה חודשי", amount_minor: 2000,
     currency: "USD", cycle: "monthly", status: "active", next_charge_on: null });
+  data.usdReferenceRate = { quote: "3.5", quoted: businessDate() };
   const bytes = Buffer.from("%PDF-1.4\nGMAIL FIXTURE\n%%EOF");
   const id = randomUUID();
   data.inboxReceipts = [{ id, sender: "receipt@fixture.test", subject: "Receipt", receivedOn: businessDate(),

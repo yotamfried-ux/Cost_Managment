@@ -117,11 +117,17 @@ test("isolated viewer can read the workspace and cannot start expense creation",
 });
 
 test("monthly subscriptions without a renewal date appear on the overview and expenses", async ({ page }) => {
-  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
-  await login(page, "owner");
+  test.skip(!process.env.D2R_TEST_PASSWORD || !process.env.D2R_SHARED_PASSWORD_HASH, "Requires shared access fixture");
+  await page.goto("/sign-in");
+  const form = page.getByRole("form", { name: "כניסה עם סיסמה משותפת" });
+  await form.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  await form.getByRole("button", { name: "כניסה" }).click();
+  await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
   const section = (name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
   for (const path of ["/", "/expenses"]) {
     await page.goto(path);
+    const forecast = page.locator("article").filter({ has: page.getByRole("heading", { name: "סך הוצאות צפוי לחודש" }) });
+    await expect(forecast.getByText(/כולל .*70\.00.* אומדני מנויים/)).toBeVisible();
     const panel = section("מנויים חודשיים");
     await expect(panel.getByRole("row").filter({ hasText: "מנוי בדיקה חודשי" })).toContainText(/20\.00/);
     const summary = section(path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית");

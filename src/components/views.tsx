@@ -3,11 +3,14 @@ import { Fragment } from "react";
 import { CalendarDays, CircleCheck, Database, FileText, Folder, Layers3, Sparkles, Target } from "lucide-react";
 import { formatMoney, monthOffset, monthTitle } from "@/lib/finance";
 import type { CostTotal, costBreakdown } from "@/lib/cost-breakdown";
+import type { MonthlyForecast } from "@/lib/monthly-forecast";
 import { actualStatus, unassigned, type Summary, type Project, type Search, type Subscription } from "@/lib/queries";
 import { Blank, categoryNames, Chip, DataTable, formatAmount, href, Metrics, Panel, SubscriptionRows, TextLink } from "./dashboard";
 import { Distribution, Trend } from "./charts";
 
-export function ExpenseMetrics({ totals, upcoming, home = false }: { totals: Summary; upcoming: Subscription[]; home?: boolean }) {
+export function ExpenseMetrics({ totals, upcoming, home = false, forecast }: {
+  totals: Summary; upcoming: Subscription[]; home?: boolean; forecast?: MonthlyForecast | null;
+}) {
   const get = (key: string) => totals.evidence.find(row => row.name === key);
   const verified = get("verified");
   const provider = get("provider");
@@ -18,7 +21,12 @@ export function ExpenseMetrics({ totals, upcoming, home = false }: { totals: Sum
   return <Metrics metrics={[
     { label: home ? "תזרים חודשי (נטו)" : "סך הוצאות החודש", value: formatAmount(home ? null : combined), detail: home ? "נתוני הכנסות חסרים" : "מאומת ונתוני ספק · סכומים בש״ח", icon: Database, tone: "coral" },
     { label: "הוצאות מאומתות", value: formatAmount(verified?.total), detail: verified ? `${verified.entries} חיובים עם מסמך מקור` : "טרם אומתו חיובים", icon: CircleCheck },
-    { label: "עלויות משוערות", value: formatAmount(estimate?.total), detail: estimate ? `${estimate.entries} רשומות אומדן` : "אין אומדנים בש״ח", icon: Sparkles },
+    forecast ? {
+      label: "סך הוצאות צפוי לחודש", value: formatAmount(forecast.totalIls), icon: Sparkles,
+      detail: forecast.missing ? `סכום חלקי · ${forecast.missing} רשומות ללא סכום בש״ח`
+        : forecast.subscriptionIls === null ? "לפי החיובים שנקלטו"
+        : `כולל ${formatAmount(forecast.subscriptionIls)} אומדני מנויים`,
+    } : { label: "עלויות משוערות", value: formatAmount(estimate?.total), detail: estimate ? `${estimate.entries} רשומות אומדן` : "אין אומדנים בש״ח", icon: Sparkles },
     { label: "חיובים קרובים", value: formatAmount(upcomingAmount), detail: `${upcoming.length} התחייבויות ב־14 הימים הקרובים`, icon: CalendarDays, tone: "neutral" },
   ]}/>;
 }
@@ -44,7 +52,7 @@ export function MonthlySubscriptions({ rows, month }: { rows: Subscription[]; mo
   const monthly = rows.filter(row => row.status === "active" && row.cycle === "monthly");
   if (!monthly.length) return null;
   return <Panel title="מנויים חודשיים" action={<TextLink to={href("/suppliers", { month })}>לספקים ומנויים</TextLink>}>
-    <p className="notice">מחירי מנויים פעילים לתכנון. סכומי החיוב בפועל מופיעים בסיכום ההוצאות לאחר שנקלטו.</p>
+    <p className="notice">תחזית ההוצאות כוללת מחירי מנויים שטרם זוהה להם חיוב בחודש. אומדנים בדולרים מחושבים לפי השער היציג האחרון שנשמר.</p>
     <SubscriptionRows rows={monthly}/>
   </Panel>;
 }

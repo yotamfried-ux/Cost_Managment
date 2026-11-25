@@ -12,6 +12,7 @@ import { applyPaymentDocument, parsePaymentText, readPaymentDocument } from "../
 import { nextGmailPage } from "../src/lib/gmail-receipts";
 import { ingestCost, registerVercelBilling } from "../src/lib/ledger";
 import { googleBillingConnector } from "../src/lib/google-billing";
+import { monthlyForecast } from "../src/lib/monthly-forecast";
 import { JWT } from "google-auth-library";
 
 test("Jerusalem month coverage and currency minor units", () => {
@@ -21,6 +22,35 @@ test("Jerusalem month coverage and currency minor units", () => {
   assert.equal(minorUnits("18.90", "ILS"), 1890);
   assert.equal(minorUnits("18", "JPY"), 18);
   assert.throws(() => minorUnits("18.9", "JPY"));
+});
+
+test("monthly forecast adds outstanding subscriptions to actuals without duplicating matched charges", () => {
+  const data = emptyData();
+  data.usdReferenceRate = { quote: "3.625", quoted: "2026-11-23" };
+  const month = "2026-11";
+  const today = month + "-25";
+  data.subscriptions.push(
+    { id: "1", supplier_id: "openai", label: "ChatGPT Plus · אומדן חודשי", currency: "USD", amount_minor: 2000,
+      status: "active", cycle: "monthly", next_charge_on: null },
+    { id: "2", supplier_id: "google", label: "Google AI Pro · אומדן חודשי", currency: "ILS", amount_minor: 7490,
+      status: "active", cycle: "monthly", next_charge_on: null },
+    { id: "3", supplier_id: "claude", label: "Claude Pro · אומדן חודשי", currency: "USD", amount_minor: 2000,
+      status: "active", cycle: "monthly", next_charge_on: null },
+  );
+  const charge: Charge = {
+    id: "receipt", description: "Google AI Pro · INVOICE-1", recorded_on: month + "-10", amount_minor: 7890,
+    currency: "ILS", evidence: "verified", amount_ils_minor: 7890, supplier_id: "google", category: "AI",
+    source: "receipt", request_id: "receipt", project_id: null, invoice_id: "receipt",
+  };
+  data.charges.push(charge, { ...charge, id: "vercel", description: "Vercel", supplier_id: "vercel",
+    amount_minor: 10000, amount_ils_minor: 10000, evidence: "provider" });
+  assert.deepEqual(monthlyForecast(data, month, today), { totalIls: 32390, subscriptionIls: 14500, missing: 0 });
+  assert.equal(monthlyForecast(data, "2026-10", today), null);
+  data.charges.push({ ...charge, id: "claude", supplier_id: "claude", description: "Receipt 3",
+    currency: "USD", amount_minor: 2000, amount_ils_minor: 7300 });
+  assert.deepEqual(monthlyForecast(data, month, today), { totalIls: 32440, subscriptionIls: 7250, missing: 0 });
+  delete data.usdReferenceRate;
+  assert.deepEqual(monthlyForecast(data, month, today), { totalIls: 25190, subscriptionIls: null, missing: 1 });
 });
 
 test("CSV neutralizes formulas and escapes values", () => {
