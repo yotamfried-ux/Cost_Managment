@@ -22,15 +22,19 @@ export async function GET(request: Request) {
   ]);
   const latest = rates.get("USD")?.at(-1);
   if (!latest) return new Response(null, { status: 502 });
+  const checkedAt = new Date().toISOString();
+  const checkDue = (previous?: string) => !previous || Date.parse(checkedAt) - Date.parse(previous) >= 3 * 3600_000;
   const newerQuote = (prior?: typeof latest) => !prior || latest.quoted > prior.quoted ||
     (latest.quoted === prior.quoted && latest.quote !== prior.quote);
   const advance = newerQuote(data.usdReferenceRate);
   const existingConversion = data.charges.some(row => needsReferenceRate(row, since, cutoff));
-  const result = advance || existingConversion ? await repository.transaction(current => {
+  const result = advance || existingConversion || checkDue(data.usdReferenceCheckedAt) ? await repository.transaction(current => {
     const refreshed = newerQuote(current.usdReferenceRate);
     if (refreshed) current.usdReferenceRate = latest;
+    const recordCheck = refreshed || checkDue(current.usdReferenceCheckedAt);
+    if (recordCheck) current.usdReferenceCheckedAt = checkedAt;
     const updated = fillReferenceRates(current, rates, since, cutoff);
-    return { result: { refreshed, updated }, changed: refreshed || updated > 0 };
+    return { result: { refreshed, updated }, changed: recordCheck || updated > 0 };
   }) : { refreshed: false, updated: 0 };
   console.info(JSON.stringify({ event: "reference_rates_refreshed", quoted: latest.quoted, ...result }));
   return Response.json({ quoted: latest.quoted, ...result });

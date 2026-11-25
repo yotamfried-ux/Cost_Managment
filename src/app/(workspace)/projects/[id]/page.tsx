@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Layers3 } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
-import { actualStatus, allCharges, listCharges, lookups, summary, isId, type Search, searchFields } from "@/lib/queries";
+import { includedStatus, allCharges, listCharges, lookups, summary, isId, type Search, searchFields } from "@/lib/queries";
 import { costBreakdown } from "@/lib/cost-breakdown";
 import { resolveMonth } from "@/lib/finance";
 import { Charges, href, PageTitle, Pagination, Panel, TextLink } from "@/components/dashboard";
@@ -19,7 +19,7 @@ export default async function ProjectDetail({ params, searchParams }: { params: 
   const detailed = search.view === "transactions";
   const totals = summary(access, month, id);
   const expenses = detailed ? listCharges(access, month, { ...search, project: id }) : null;
-  const costs = detailed ? undefined : costBreakdown(allCharges(access, month, { project: id, status: actualStatus })).projects.get(id);
+  const costs = detailed ? undefined : costBreakdown(allCharges(access, month, { project: id, status: includedStatus })).projects.get(id);
   return <>
     <PageTitle title={project.name} description={project.description || "עלויות והוצאות משויכות לפרויקט"} icon={Layers3}>
       <TextLink to={href("/projects", { month })}>לכל הפרויקטים <ArrowLeft size={13} aria-hidden="true"/></TextLink>

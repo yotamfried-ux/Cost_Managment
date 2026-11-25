@@ -106,6 +106,16 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await expect(page.getByRole("navigation", { name: "ניווט ראשי" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: testInfo.outputPath("dashboard-mobile.png"), fullPage: true });
+  await page.goto("/integrations");
+  await expect(page.getByText("נדרש חידוש הרשאת Gmail", { exact: true })).toBeVisible();
+  const supplierSource = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Hetzner", exact: true }) });
+  await expect(supplierSource.getByText("מסמכים נקלטו")).toBeVisible();
+  await supplierSource.getByRole("link").click();
+  await expect(page.getByRole("link", { name: "FIX-HETZNER", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.getByRole("link", { name: "FIX-HETZNER", exact: true }).click();
+  await expect(page.getByText("לא נמצאה הוצאה מתאימה בחודש החשבונית.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
 test("isolated viewer can read the workspace and cannot start expense creation", async ({ page }) => {
@@ -114,6 +124,30 @@ test("isolated viewer can read the workspace and cannot start expense creation",
   await expect(page.getByRole("link", { name: "הוספת הוצאה" })).toHaveCount(0);
   await page.goto("/expenses?add=expense");
   await expect(page.getByRole("heading", { name: "הוספת הוצאה" })).toHaveCount(0);
+});
+
+test("monthly subscriptions without a renewal date appear on the overview and expenses", async ({ page }) => {
+  test.skip(!process.env.D2R_TEST_PASSWORD || !process.env.D2R_SHARED_PASSWORD_HASH, "Requires shared access fixture");
+  await page.goto("/sign-in");
+  const form = page.getByRole("form", { name: "כניסה עם סיסמה משותפת" });
+  await form.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  await form.getByRole("button", { name: "כניסה" }).click();
+  await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
+  const section = (name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+  for (const path of ["/", "/expenses"]) {
+    await page.goto(path);
+    const manual = page.locator("article").filter({ has: page.getByRole("heading", { name: "חיובים חודשיים ידניים" }) });
+    await expect(manual.getByText(/70\.00/)).toBeVisible();
+    const panel = section("מנויים חודשיים");
+    await expect(panel.getByRole("row").filter({ hasText: "מנוי בדיקה חודשי" })).toContainText(/20\.00/);
+    const summary = section(path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית");
+    await expect(summary.getByRole("rowheader", { name: "ספק בדיקה", exact: true })).toBeVisible();
+  }
+  await page.goto("/reports");
+  await expect(page.getByRole("cell", { name: "חיוב חודשי ידני", exact: true })).toBeVisible();
+  const csv = await page.request.get("/api/export");
+  expect(csv.status()).toBe(200);
+  expect(await csv.text()).toContain('"מנוי בדיקה חודשי"');
 });
 
 test("shared password keeps a remembered browser signed in and grants viewer access", async ({ page, browser }) => {

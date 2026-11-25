@@ -3,22 +3,21 @@ import { Fragment } from "react";
 import { CalendarDays, CircleCheck, Database, FileText, Folder, Layers3, Sparkles, Target } from "lucide-react";
 import { formatMoney, monthOffset, monthTitle } from "@/lib/finance";
 import type { CostTotal, costBreakdown } from "@/lib/cost-breakdown";
-import { actualStatus, unassigned, type Summary, type Project, type Search, type Subscription } from "@/lib/queries";
-import { Blank, categoryNames, Chip, DataTable, formatAmount, href, Metrics, Panel, TextLink } from "./dashboard";
+import { actualStatus, includedStatus, unassigned, type Summary, type Project, type Search, type Subscription } from "@/lib/queries";
+import { Blank, categoryNames, Chip, DataTable, formatAmount, href, Metrics, Panel, SubscriptionRows, TextLink } from "./dashboard";
 import { Distribution, Trend } from "./charts";
 
-export function ExpenseMetrics({ totals, upcoming, home = false }: { totals: Summary; upcoming: Subscription[]; home?: boolean }) {
-  const get = (key: string) => totals.evidence.find(row => row.name === key);
-  const verified = get("verified");
-  const provider = get("provider");
-  const estimate = get("estimate");
-  const combined = (verified?.total != null || provider?.total != null) ? (verified?.total ?? 0) + (provider?.total ?? 0) : null;
+export function ExpenseMetrics({ totals, upcoming }: { totals: Summary; upcoming: Subscription[] }) {
+  const verified = totals.evidence.find(row => row.name === "verified");
+  const manual = totals.evidence.find(row => row.name === "manual");
+  const missingFx = totals.evidence.filter(row => ["manual", "verified", "provider"].includes(row.name))
+    .reduce((sum, row) => sum + row.fx_missing, 0);
   const inIls = upcoming.filter(row => row.currency === "ILS" && row.amount_minor !== null);
   const upcomingAmount = inIls.length ? inIls.reduce((sum, row) => sum + (row.amount_minor ?? 0), 0) : null;
   return <Metrics metrics={[
-    { label: home ? "תזרים חודשי (נטו)" : "סך הוצאות החודש", value: formatAmount(home ? null : combined), detail: home ? "נתוני הכנסות חסרים" : "מאומת ונתוני ספק · סכומים בש״ח", icon: Database, tone: "coral" },
+    { label: "סך הוצאות החודש", value: formatAmount(totals.totalIncluded), detail: missingFx ? `סכום חלקי · ${missingFx} חיובים ללא שער` : "כולל חיובים חודשיים ידניים · ש״ח", icon: Database, tone: "coral" },
     { label: "הוצאות מאומתות", value: formatAmount(verified?.total), detail: verified ? `${verified.entries} חיובים עם מסמך מקור` : "טרם אומתו חיובים", icon: CircleCheck },
-    { label: "עלויות משוערות", value: formatAmount(estimate?.total), detail: estimate ? `${estimate.entries} רשומות אומדן` : "אין אומדנים בש״ח", icon: Sparkles },
+    { label: "חיובים חודשיים ידניים", value: formatAmount(manual?.total), detail: `${manual?.entries ?? 0} חיובים מתוך הסכום החודשי`, icon: Sparkles },
     { label: "חיובים קרובים", value: formatAmount(upcomingAmount), detail: `${upcoming.length} התחייבויות ב־14 הימים הקרובים`, icon: CalendarDays, tone: "neutral" },
   ]}/>;
 }
@@ -35,10 +34,20 @@ export function ExpenseCharts({ totals, month, title = "התפלגות הוצא�
     <div className="split charts-row"><Panel title={title}>
       <Distribution rows={totals.categories} label="הוצאות חיוביות בש״ח"/>
     </Panel><Panel title={trendTitle} action={<span className="range-label">12 חודשים</span>}>
-      <Trend rows={trends} firstLabel="הוצאות מאומתות" secondLabel="נתוני ספק"/>
+      <Trend rows={trends} firstLabel="הוצאות מאומתות" secondLabel="נתוני ספק וחיובים ידניים"/>
     </Panel></div>
   </>;
 }
+
+export function MonthlySubscriptions({ rows, month }: { rows: Subscription[]; month: string }) {
+  const monthly = rows.filter(row => row.status === "active" && row.cycle === "monthly");
+  if (!monthly.length) return null;
+  return <Panel title="מנויים חודשיים" action={<TextLink to={href("/suppliers", { month })}>לספקים ומנויים</TextLink>}>
+    <p className="notice">מנויים חודשיים ללא חיוב תואם נכללים בסך ההוצאות כחיובים ידניים. סכומים אלה בדולרים מחושבים לפי השער היציג האחרון שנשמר.</p>
+    <SubscriptionRows rows={monthly}/>
+  </Panel>;
+}
+
 const projectStates: Record<string,string> = { active: "פעיל", planned: "בתכנון", archived: "בארכיון" };
 export function ProjectList({ projects, totals, month, compact = false }: { projects: Project[]; totals: Summary; month: string; compact?: boolean }) {
   if (!projects.length) return <Blank>טרם נוספו פרויקטים.</Blank>;
@@ -99,7 +108,7 @@ export function SupplierCosts({ title, group, path, search, action }: {
     {group?.suppliers.size ? <DataTable headings={["ספק תשתית", "סך במטבע המקורי", "סך בש״ח", "פירוט"]}>
       {[...group.suppliers.values()].sort((a,b) => a.name.localeCompare(b.name,"he")).map(({ id, name, total }) => <tr key={id}>
         <th scope="row">{name}</th><CostCells total={total}/>
-        <td><TextLink to={href(path, search, { supplier: id, view: "transactions", page: undefined, status: search.status || actualStatus })}>פירוט חיובים</TextLink></td>
+        <td><TextLink to={href(path, search, { supplier: id, view: "transactions", page: undefined, status: search.status || includedStatus })}>פירוט חיובים</TextLink></td>
       </tr>)}
       <tr><th scope="row">סך החיובים</th><CostCells total={group.total}/><td /></tr>
     </DataTable> : <Blank>אין חיובים לסיכום בתקופה ובמסננים שנבחרו.</Blank>}
@@ -125,7 +134,7 @@ export function ProjectCosts({ groups, projects, month }: {
           </tr>
           {group && [...group.suppliers.values()].sort((a,b) => a.name.localeCompare(b.name,"he")).map(supplier => <tr key={supplier.id}>
             <th scope="row" className="cost-supplier">{supplier.name}</th><CostCells total={supplier.total}/>
-            <td><TextLink to={href(path, search, { supplier: supplier.id, status: actualStatus, view: "transactions" })}>פירוט חיובים</TextLink></td>
+            <td><TextLink to={href(path, search, { supplier: supplier.id, status: includedStatus, view: "transactions" })}>פירוט חיובים</TextLink></td>
           </tr>)}
         </Fragment>;
       })}
@@ -142,9 +151,9 @@ export function Filters({ path, search, projects = [], suppliers, invoice = fals
     <label className="filter-search"><span className="visually-hidden">חיפוש</span><input type="search" name="q" defaultValue={search.q} placeholder={invoice ? "חיפוש במסמכים..." : "חיפוש בהוצאות..."}/></label>
     {!invoice && <label><span className="visually-hidden">פרויקט</span><select name="project" defaultValue={search.project ?? ""}><option value="">כל הפרויקטים</option><option value={unassigned}>ללא שיוך לפרויקט</option>{projects.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>}
     {!invoice && <label><span className="visually-hidden">קטגוריה</span><select name="category" defaultValue={search.category ?? ""}><option value="">כל הקטגוריות</option>{categoryNames.map(name => <option key={name}>{name}</option>)}</select></label>}
-    <label><span className="visually-hidden">סטטוס</span><select name="status" defaultValue={search.status ?? ""}><option value="">{!invoice && search.view !== "transactions" ? "מאומת ונתוני ספק" : "כל הסטטוסים"}</option>
+    <label><span className="visually-hidden">סטטוס</span><select name="status" defaultValue={search.status ?? ""}><option value="">{!invoice && search.view !== "transactions" ? "כל החיובים הכלולים בסכום" : "כל הסטטוסים"}</option>
       {invoice ? <><option value="matched">מותאם</option><option value="review">לבדיקה</option></> :
-        <>{search.view === "transactions" && <option value={actualStatus}>מאומת ונתוני ספק</option>}<option value="verified">מאומת</option><option value="provider">נתוני ספק</option><option value="estimate">אומדן</option><option value="missing">חסר מקור</option></>}</select></label>
+        <>{search.view === "transactions" && <><option value={includedStatus}>כל החיובים הכלולים בסכום</option><option value={actualStatus}>מאומת ונתוני ספק</option></>}<option value="verified">מאומת</option><option value="provider">נתוני ספק</option><option value="manual">חיוב חודשי ידני</option><option value="estimate">אומדן</option><option value="missing">חסר מקור</option></>}</select></label>
     <label><span className="visually-hidden">ספק</span><select name="supplier" defaultValue={search.supplier ?? ""}><option value="">כל הספקים</option>{!invoice && <option value={unassigned}>ללא ספק</option>}{suppliers.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
     <label><span className="visually-hidden">סדר תאריך</span><select name="sort" defaultValue={search.sort ?? ""}><option value="">מהחדש לישן</option><option value="oldest">מהישן לחדש</option></select></label>
     <button className="button">סינון</button><Link href={href(path, { month: search.month, view: search.view })} className="button">ניקוי</Link>
