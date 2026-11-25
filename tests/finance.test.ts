@@ -259,6 +259,19 @@ test("Vercel uses billed cost from the complete billing export for the requested
   assert.deepEqual(rows[0].vercelBreakdown, { platformMinor: 0, projects: [{ id: "prj_fixtureTest", minor: 13 }] });
 });
 
+test("Vercel preserves project usage smaller than one cent per day", async t => {
+  const days = ["01", "02", "03"];
+  const result = days.flatMap(day => [
+    { BilledCost: 0.277, ServiceName: "Pro", ChargeCategory: "Purchase" },
+    { BilledCost: 0.004, Tags: { ProjectId: "prj_fixtureTest" } },
+  ].map(item => JSON.stringify({ ...item, BillingCurrency: "USD", SubAccountId: "team_fixture",
+    ChargePeriodEnd: `2026-11-${day}T00:00:00Z` })));
+  t.mock.method(globalThis, "fetch", async () => new Response(result.join("\n"), { headers: { "content-type": "application/jsonl" } }));
+  const rows = await vercelConnector("fixture").syncCosts({ start: "2026-11-01", end: "2026-12-01", account: "team_fixture" });
+  assert.equal(rows.reduce((sum, row) => sum + row.minor, 0), 84);
+  assert.equal(rows.flatMap(row => row.vercelBreakdown?.projects ?? []).reduce((sum, row) => sum + row.minor, 0), 1);
+});
+
 test("Vercel reporting attributes tagged cost and counts the configured fee once", () => {
   const data = emptyData();
   const month = businessDate().slice(0, 7);

@@ -57,18 +57,36 @@ export function vercelConnector(token: string): CostConnector {
       await reader.cancel();
     }
 
-    return [...totals].map(([day, amounts]): ProviderCost => {
-      const next = new Date(Date.parse(day + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
-      const projectParts = [...amounts.projects].sort(([a], [b]) => a.localeCompare(b));
-      const values = [amounts.platform, amounts.shared, ...projectParts.map(([, amount]) => amount)].map(amount => amount * 100);
-      const sum = values.reduce((total, amount) => total + amount, 0);
-      const minor = Math.sign(sum) * Math.round(Math.abs(sum));
-      const parts = roundParts(values, minor);
-      return {
-        key: `${day}:${next}:USD`, start: day, end: next, label: "Vercel team billing · FOCUS",
-        currency: "USD", minor,
-        vercelBreakdown: { platformMinor: parts[0], projects: projectParts.flatMap(([id], index) => parts[index + 2] ? [{ id, minor: parts[index + 2] }] : []) },
-      };
+    const months = new Map<string, string[]>();
+    for (const day of [...totals.keys()].sort()) {
+      const month = day.slice(0, 7);
+      const days = months.get(month) ?? [];
+      days.push(day);
+      months.set(month, days);
+    }
+
+    return [...months.values()].flatMap(days => {
+      const amounts = days.map(day => totals.get(day)!);
+      const projects = [...new Set(amounts.flatMap(row => [...row.projects.keys()]))].sort();
+      const columns = [
+        amounts.map(row => row.platform * 100),
+        amounts.map(row => row.shared * 100),
+        ...projects.map(id => amounts.map(row => (row.projects.get(id) ?? 0) * 100)),
+      ];
+      const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+      const perMonth = columns.map(sum);
+      const monthAmount = sum(perMonth);
+      const rounded = roundParts(perMonth, Math.sign(monthAmount) * Math.round(Math.abs(monthAmount)));
+      const roundedColumns = columns.map((column, index) => roundParts(column, rounded[index]));
+      return days.map((day, dayIndex): ProviderCost => {
+        const next = new Date(Date.parse(day + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
+        const parts = roundedColumns.map(column => column[dayIndex]);
+        return {
+          key: `${day}:${next}:USD`, start: day, end: next, label: "Vercel team billing · FOCUS",
+          currency: "USD", minor: sum(parts),
+          vercelBreakdown: { platformMinor: parts[0], projects: projects.flatMap((id, index) => parts[index + 2] ? [{ id, minor: parts[index + 2] }] : []) },
+        };
+      });
     });
   } };
 }
