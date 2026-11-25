@@ -106,6 +106,16 @@ test("owner enters workspace, adds a real ledger entry, exports, and navigates e
   await expect(page.getByRole("navigation", { name: "ניווט ראשי" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: testInfo.outputPath("dashboard-mobile.png"), fullPage: true });
+  await page.goto("/integrations");
+  await expect(page.getByText("נדרש חידוש הרשאת Gmail", { exact: true })).toBeVisible();
+  const supplierSource = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Hetzner", exact: true }) });
+  await expect(supplierSource.getByText("מסמכים נקלטו")).toBeVisible();
+  await supplierSource.getByRole("link").click();
+  await expect(page.getByRole("link", { name: "FIX-HETZNER", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.getByRole("link", { name: "FIX-HETZNER", exact: true }).click();
+  await expect(page.getByText("לא נמצאה הוצאה מתאימה בחודש החשבונית.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
 test("isolated viewer can read the workspace and cannot start expense creation", async ({ page }) => {

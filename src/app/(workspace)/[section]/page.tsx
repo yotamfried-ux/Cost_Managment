@@ -98,6 +98,7 @@ async function Invoices({ access, month, search, edit }: View) {
   const matches = candidates.filter(row => row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches);
   return <>
     <PageTitle title="חשבוניות" description="ניהול חשבוניות, קבלות ומסמכי מקור של העסק." icon={FileText}>
+      <TextLink to={href("/integrations", { month })}>סטטוס קליטת חשבוניות</TextLink>
       {edit && <Add path="/invoices" month={month} kind="invoice">העלאת חשבונית</Add>}
     </PageTitle>
     <Flash search={search}/>
@@ -216,7 +217,18 @@ async function Integrations({ access, month, search }: View) {
   const statusText: Record<string, string> = { completed: "הושלם", partial: "חלקי · ייבדק שוב", failed: "נכשל", running: "בתהליך" };
   const runTime = new Intl.DateTimeFormat("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" });
   const reasonText: Record<string, string> = { permission: "חסרה הרשאת קריאה", vendor_request: "בקשת ספק נכשלה", storage: "שמירה נכשלה", vendor_data: "נתוני ספק לא תקינים", provider_response: "תגובה בלתי צפויה מהספק" };
+  const gmailReason: Record<string, string> = {
+    invalid_grant: "נדרש חידוש הרשאת Gmail", invalid_client: "פרטי חיבור Gmail נדחו",
+    unauthorized_client: "יישום Gmail חסר הרשאה", access_denied: "גישת Gmail נדחתה",
+    invalid_scope: "הרשאת Gmail אינה מתאימה", temporarily_unavailable: "Gmail לא היה זמין",
+    oauth: "אימות Gmail נכשל", list: "קריאת רשימת ההודעות נכשלה",
+    message: "קריאת הודעה נכשלה", attachment: "הורדת קובץ מצורף נכשלה",
+    gmail_payload: "קריאת נתוני Gmail נכשלה", document_read: "קריאת מסמך נכשלה",
+    storage_read: "קריאה מהאחסון נכשלה", storage_write: "שמירה באחסון נכשלה",
+  };
   const active = new Set(accounts.filter(row => runs.find(run => run.provider_account_id === row.id)?.status === "completed").map(row => row.provider));
+  if (latestGmail?.status === "completed") active.add("gmail");
+  const failed = runs.filter(run => run.status === "failed").length + gmailRuns.filter(run => run.status === "failed").length;
   return <>
     <PageTitle title="אינטגרציות" description="מקורות חיוב, הרשאות קריאה והיסטוריית סנכרון." icon={Plug}>
       <TextLink to={href("/invoices",{ month })}>העלאת מסמכי ספק</TextLink>
@@ -228,21 +240,30 @@ async function Integrations({ access, month, search }: View) {
       { label: "מקורות חיוב", value: providerCatalog.length, detail: "קטלוג ספקים", icon: Plug },
       { label: "חשבונות מוגדרים", value: accounts.length, detail: "רק בסביבת העבודה הנוכחית", icon: Building2 },
       { label: "מקורות עם סנכרון שהושלם", value: active.size, detail: "לפי הריצה האחרונה הגלויה", icon: CircleCheck },
-      { label: "ריצות שנכשלו", value: runs.filter(run => run.status === "failed").length, detail: "מתוך 30 הריצות האחרונות", icon: TriangleAlert, tone: "coral" },
+      { label: "ריצות שנכשלו", value: failed, detail: "בהיסטוריית הסנכרון המוצגת", icon: TriangleAlert, tone: "coral" },
     ]}/>
-    <Panel title="מקורות נתונים"><DataTable headings={["מקור","נתונים","סטטוס","סנכרון אחרון"]}>{providerCatalog.map(([key, label, scope]) => {
+    <Panel title="מקורות נתונים"><DataTable headings={["מקור","נתונים","סטטוס","עדכון אחרון","מסמכי מקור"]}>{providerCatalog.map(([key, label, scope]) => {
       const account = accounts.find(row => row.provider === key);
       const run = runs.find(row => row.provider_account_id === account?.id);
       const state = key === "gmail" ? latestGmail?.status : run?.status;
       const tone = state === "completed" ? "good" : state === "failed" ? "bad" : state === "partial" ? "pending" : "neutral";
       const received = key === "gmail" ? access.data.inboxReceipts?.[0] : undefined;
-      const text = state ? statusText[state] : received ? "מסמכים נקלטו" : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
-      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{key === "gmail" && latestGmail ? runTime.format(new Date(latestGmail.at)) : received ? displayDate(received.receivedOn) : run ? displayDate(run.started_at) : "—"}</td></tr>;
+      const supplierId = account?.supplier_id ?? directory.suppliers.find(supplier => supplier.name.toLowerCase() === label.toLowerCase())?.id;
+      const documents = supplierId ? access.data.invoices.filter(invoice => invoice.supplier_id === supplierId)
+        .sort((a, b) => b.issued_on.localeCompare(a.issued_on)) : [];
+      const latestDocument = documents[0];
+      const text = state ? statusText[state] : received || latestDocument ? "מסמכים נקלטו" : account ? "ממתין לסנכרון" : adapterProviders.has(key) ? "לא הוגדר" : "נדרש מקור חשבונית או חיבור";
+      const updated = key === "gmail" && latestGmail ? runTime.format(new Date(latestGmail.at))
+        : run ? displayDate(run.started_at) : received ? displayDate(received.receivedOn) : "—";
+      return <tr key={key}><td><bdi>{label}</bdi></td><td>{scope}</td><td><Chip tone={tone}>{text}</Chip></td><td>{updated}</td>
+        <td>{latestDocument ? <TextLink to={href("/invoices", { month: latestDocument.issued_on.slice(0, 7), supplier: latestDocument.supplier_id })}>
+          {documents.length} · {displayDate(latestDocument.issued_on)}</TextLink> : "—"}</td></tr>;
     })}</DataTable></Panel>
     <Panel title="ריצות קליטת חשבוניות מ־Gmail">
-      {gmailRuns.length ? <DataTable headings={["מועד","סטטוס","מסמכים חדשים","תויקו","תשלומים אומתו","מסמכים לבדיקה","המשך סריקה"]}>{gmailRuns.map((run,index) => <tr key={run.at + index}>
+      {gmailRuns.length ? <DataTable headings={["מועד","סטטוס","מסמכים חדשים","תויקו","תשלומים אומתו","מסמכים לבדיקה","המשך סריקה","פרטים"]}>{gmailRuns.map((run,index) => <tr key={run.at + index}>
         <td>{runTime.format(new Date(run.at))}</td><td>{statusText[run.status]}</td><td>{run.added}</td>
         <td>{run.filed}</td><td>{run.paid}</td><td>{run.review ?? "—"}</td><td>{run.hasMore ? "בריצה הבאה" : "—"}</td>
+        <td>{run.status === "failed" ? gmailReason[run.reason ?? ""] ?? "הקליטה נכשלה" : run.status === "partial" ? "חלק מההודעות ייבדקו שוב" : "—"}</td>
       </tr>)}</DataTable> : <Blank>טרם תועדה ריצת קליטה.</Blank>}
     </Panel>
     <Panel title="היסטוריית סנכרון">
