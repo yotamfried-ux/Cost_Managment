@@ -1,6 +1,6 @@
-export type Evidence = "verified" | "provider" | "estimate" | "missing";
+export type Evidence = "verified" | "provider" | "manual" | "estimate" | "missing";
 export const evidenceLabels: Record<Evidence, string> = {
-  verified: "מאומת", provider: "נתוני ספק", estimate: "אומדן", missing: "חסר מקור",
+  verified: "מאומת", provider: "נתוני ספק", manual: "חיוב חודשי ידני", estimate: "אומדן", missing: "חסר מקור",
 };
 
 export const currencies = ["ILS", "USD", "EUR", "GBP", "CAD", "JPY", "CHF", "AUD", "SEK", "INR"] as const;

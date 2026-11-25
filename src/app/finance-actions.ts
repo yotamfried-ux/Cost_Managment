@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireWorkspace } from "@/lib/session";
-import { currencies, minorUnits, resolveMonth } from "@/lib/finance";
+import { businessDate, currencies, minorUnits, resolveMonth } from "@/lib/finance";
 import { applyExchangeRate, audit, flagCharge, matchInvoice } from "@/lib/ledger";
 import { providerCatalog } from "@/lib/connectors";
 import { cleanFilename, pdfMaxSize, validPdf } from "@/lib/documents";
@@ -95,7 +95,8 @@ export async function mutate(kind: string, form: FormData) {
           requireSupplier(item.supplier);
           if (data.subscriptions.some(row => row.supplier_id === item.supplier && row.label === item.label)) throw new Error("Subscription exists");
           const subscription = { id: randomUUID(), supplier_id: item.supplier, label: item.label, currency: item.currency,
-            amount_minor: item.amount ? minorUnits(item.amount, item.currency) : null, cycle: item.cycle, next_charge_on: item.next || null, status: "active" };
+            amount_minor: item.amount ? minorUnits(item.amount, item.currency) : null, cycle: item.cycle,
+            starts_on: item.next || businessDate(), next_charge_on: item.next || null, status: "active" };
           data.subscriptions.push(subscription);
           audit(data, actor, "subscriptions", "INSERT", subscription);
           break;

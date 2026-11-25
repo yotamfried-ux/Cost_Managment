@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
-import { actualStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
+import { includedStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
 import { costBreakdown } from "@/lib/cost-breakdown";
-import { monthlyForecast } from "@/lib/monthly-forecast";
 import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
@@ -33,23 +32,24 @@ async function Expenses({ access, month, search, edit }: View) {
   const [totals, upcoming, directory, result] = await Promise.all([
     summary(access, month), subscriptions(access, true), lookups(access), listCharges(access, month, search),
   ]);
-  const fxCandidates = result.rows.filter(row => row.currency !== "ILS" && row.amount_minor !== null);
+  const editableRows = result.rows.filter(row => row.evidence !== "manual");
+  const fxCandidates = editableRows.filter(row => row.currency !== "ILS" && row.amount_minor !== null);
   const detailed = search.view === "transactions";
   const scoped = isId(search.project) || search.project === unassigned;
-  const costs = detailed ? null : costBreakdown(allCharges(access, month, { ...search, status: search.status || actualStatus }));
+  const costs = detailed ? null : costBreakdown(allCharges(access, month, { ...search, status: search.status || includedStatus }));
   const group = scoped ? costs?.projects.get(search.project!) : costs?.all;
   return <>
     <PageTitle title="הוצאות" description="מעקב אחר הוצאות העסק לפי פרויקטים, קטגוריות וספקים." icon={Database}>
-      <Link className="button" href={href("/expenses", search, { view: detailed ? undefined : "transactions", page: undefined, status: detailed && search.status === actualStatus ? undefined : search.status })}>{detailed ? "סיכום לפי ספק" : "פירוט תנועות"}</Link>
+      <Link className="button" href={href("/expenses", search, { view: detailed ? undefined : "transactions", page: undefined, status: detailed && search.status === includedStatus ? undefined : search.status })}>{detailed ? "סיכום לפי ספק" : "פירוט תנועות"}</Link>
       <Link className="button" href={href("/projects", { month })}>עלויות לפי פרויקט</Link>
       <Export search={search}/>
-      {edit && result.rows.length > 0 && directory.projects.length > 0 && <Link className="button" href={href("/expenses", search, { add: "allocation" })}>חלוקת עלויות</Link>}
+      {edit && editableRows.length > 0 && directory.projects.length > 0 && <Link className="button" href={href("/expenses", search, { add: "allocation" })}>חלוקת עלויות</Link>}
       {edit && fxCandidates.length > 0 && <Link className="button" href={href("/expenses", search, { add: "fx" })}>עדכון שער המרה</Link>}
       {edit && <Add path="/expenses" month={month} kind="expense">הוצאה חדשה</Add>}
     </PageTitle>
     <Flash search={search}/>
-    {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? result.rows : fxCandidates}/>}
-    <ExpenseMetrics totals={totals} upcoming={upcoming} forecast={monthlyForecast(access.data, month)}/>
+    {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? editableRows : fxCandidates}/>}
+    <ExpenseMetrics totals={totals} upcoming={upcoming}/>
     <MonthlySubscriptions rows={subscriptions(access)} month={month}/>
     <Filters {...directory} path="/expenses" search={search}/>
     {detailed ? <Panel title={`רשימת הוצאות (${result.count})`}>
@@ -68,7 +68,7 @@ async function Projects({ access, month, search, edit }: View) {
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/projects" kind={search.add === "project" ? "project" : undefined} month={month}/>}
     <ProjectMetrics projects={directory.projects} totals={totals}/>
-    <ProjectCosts groups={costBreakdown(allCharges(access, month, { status: actualStatus })).projects} projects={directory.projects} month={month}/>
+    <ProjectCosts groups={costBreakdown(allCharges(access, month, { status: includedStatus })).projects} projects={directory.projects} month={month}/>
     <ProjectList projects={directory.projects} totals={totals} month={month}/>
     <div className="split parallel"><Panel title="חלוקת עלויות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects}/></Panel>
       <Panel title="פרויקטים פעילים"><ProjectList projects={directory.projects.filter(row => row.status === "active")} totals={totals} month={month} compact/></Panel>
@@ -97,7 +97,7 @@ async function Invoices({ access, month, search, edit }: View) {
   const hasPaymentReceipt = supportingDocuments.some(receipt => receipt.paymentData?.kind === "receipt");
   const candidates = item && edit && item.status !== "matched"
     ? allCharges(access, item.issued_on.slice(0, 7), { supplier: item.supplier_id }) : [];
-  const matches = candidates.filter(row => row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches);
+  const matches = candidates.filter(row => row.evidence !== "manual" && row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches);
   return <>
     <PageTitle title="חשבוניות" description="ניהול חשבוניות, קבלות ומסמכי מקור של העסק." icon={FileText}>
       <TextLink to={href("/integrations", { month })}>סטטוס קליטת חשבוניות</TextLink>
@@ -164,7 +164,7 @@ async function Suppliers({ access, month, search, edit }: View) {
     {edit && <FormPanel {...directory} path="/suppliers" kind={["subscription","supplier"].includes(search.add ?? "") ? search.add : undefined} month={month}/>}
     <Metrics metrics={[
       { label: "ספקים רשומים", value: directory.suppliers.length, detail: "קטלוג ספקים", icon: UsersRound },
-      { label: "הוצאות ספקים", value: formatAmount(supplierTotal), detail: "הוצאות חיוביות בש״ח · מאומת ונתוני ספק", icon: Database },
+      { label: "הוצאות ספקים", value: formatAmount(supplierTotal), detail: "הוצאות חיוביות בש״ח · כולל חיובים ידניים", icon: Database },
       { label: "חידושים קרובים", value: next.length, detail: "ב־14 הימים הקרובים", icon: CalendarDays, tone: "coral" },
       { label: "מנויים פעילים", value: all.filter(row => row.status === "active").length, detail: "לפי נתוני המנויים בסביבת העבודה", icon: CreditCard },
     ]}/>
@@ -190,13 +190,13 @@ async function Reports({ access, month, search }: View) {
   return <>
     <PageTitle title="דוחות" description="מגמות, פילוח וייצוא נתוני הוצאות לתקופה." icon={ChartNoAxesColumnIncreasing}>
       <Link className="button" href={href("/reports",{ month },{ period: annual ? undefined : "annual" })}>{annual ? "עבור לדוח חודשי" : "עבור לסיכום שנתי"}</Link>
-      <Export search={search}/>
+      <Export search={annual ? { month, period: "annual" } : { month }}/>
     </PageTitle>
     <Metrics metrics={[
+      { label: "סך הוצאות בתקופה", value: formatAmount(totals.totalIncluded), detail: "כולל חיובים חודשיים ידניים · ש״ח", icon: Database },
       { label: "הוצאות מאומתות", value: formatAmount(actual?.total), detail: `${actual?.entries ?? 0} תנועות · ש״ח`, icon: CircleCheck },
       { label: "נתוני ספק", value: formatAmount(costs?.total), detail: `${costs?.entries ?? 0} תנועות · ש״ח`, icon: Database, tone: "coral" },
       { label: "אומדנים בתקופה", value: formatAmount(outlook?.total), detail: `${outlook?.entries ?? 0} תנועות · ש״ח`, icon: Activity },
-      { label: "רווח נקי", value: "—", detail: "נתוני הכנסות חסרים", icon: ChartNoAxesColumnIncreasing },
     ]}/>
     <ExpenseCharts totals={totals} month={annual ? monthOffset(reportMonth,11) : month}
       title={annual ? `התפלגות הוצאות לשנת ${reportMonth.slice(0,4)}` : "התפלגות הוצאות החודש"}/>

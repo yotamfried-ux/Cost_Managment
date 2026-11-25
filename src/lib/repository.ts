@@ -23,7 +23,7 @@ export type Invoice = {
   id: string; invoice_number: string; original_name: string; issued_on: string; supplier_id: string; currency: string;
   amount_minor: number; status: "review" | "matched"; sha256: string; format?: "eml";
 };
-export type Subscription = { id: string; supplier_id: string; label: string; amount_minor: number | null; currency: string; cycle: string; next_charge_on: string | null; status: string };
+export type Subscription = { id: string; supplier_id: string; label: string; amount_minor: number | null; currency: string; cycle: string; next_charge_on: string | null; status: string; starts_on?: string };
 export type Account = { id: string; provider: string; external_account_id: string; supplier_id: string; last_synced_at: string | null };
 export type Run = { id: string; provider_account_id: string; status: "running" | "completed" | "failed"; reason: string | null; observed_count: number; started_at: string; finished_at: string | null };
 export type Audit = { id: string; entity: string; operation: "INSERT" | "UPDATE"; created_at: string; actor: string; before?: unknown; after?: unknown };
@@ -52,6 +52,7 @@ export type WorkspaceData = {
   gmailScan?: GmailScan;
   gmailRuns?: GmailRun[];
   usdReferenceRate?: { quote: string; quoted: string };
+  usdReferenceCheckedAt?: string;
 };
 
 export function emptyData(): WorkspaceData {

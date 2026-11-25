@@ -1,5 +1,6 @@
 import { businessDate, monthOffset, type Evidence } from "./finance";
 import { chargeShares, splitAmount } from "./allocation";
+import { monthlyManualCharges } from "./monthly-charges";
 import type { requireWorkspace } from "./session";
 import type { Charge as StoredCharge, Invoice as StoredInvoice, Subscription as StoredSubscription } from "./repository";
 export type { Project, Supplier } from "./repository";
@@ -28,11 +29,15 @@ export type Summary = {
   projects: { project_id: string; total: number }[];
   suppliers: Series[];
   unallocated: number | null;
+  totalIncluded: number | null;
 };
 
 export const pageSize = 12;
 export const unassigned = "unassigned";
 export const actualStatus = "actual";
+export const includedStatus = "included";
+const isActual = (evidence: Evidence) => evidence === "verified" || evidence === "provider";
+const isIncluded = (evidence: Evidence) => isActual(evidence) || evidence === "manual";
 export const pageNumber = (value?: string) => /^([1-9]\d{0,3})$/.test(value ?? "") ? Number(value) : 1;
 export const isId = (value?: string) => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const lower = (value?: string) => value?.trim().slice(0, 100).toLowerCase() ?? "";
@@ -49,17 +54,19 @@ export function summary({ data }: Access, month: string, project?: string, month
   const trend = new Map<string, Summary["trend"][number]>();
   const supplierNames = new Map(data.suppliers.map(row => [row.id, row.name]));
   let unallocated: number | null = null;
-  for (const charge of data.charges) {
+  let totalIncluded: number | null = null;
+  for (const charge of [...data.charges, ...monthlyManualCharges(data, prior.slice(0, 7), end.slice(0, 7))]) {
     if (charge.recorded_on < prior || charge.recorded_on >= end) continue;
     const allocations = chargeShares(charge);
     if (project && !allocations.some(row => row.projectId === project)) continue;
     const split = charge.amount_ils_minor === null ? null : splitAmount(charge.amount_ils_minor, allocations);
     const amount = project ? split?.get(project) ?? null : charge.amount_ils_minor;
-    const actual = charge.evidence === "verified" || charge.evidence === "provider";
-    if (actual && amount !== null) {
+    const included = isIncluded(charge.evidence);
+    if (included && amount !== null) {
       const key = charge.recorded_on.slice(0,7);
       const item = trend.get(key) ?? { month: key, verified: null, provider: null };
-      item[charge.evidence as "verified" | "provider"] = (item[charge.evidence as "verified" | "provider"] ?? 0) + amount;
+      const series = charge.evidence === "verified" ? "verified" : "provider";
+      item[series] = (item[series] ?? 0) + amount;
       trend.set(key, item);
     }
     if (charge.recorded_on < start) continue;
@@ -68,7 +75,8 @@ export function summary({ data }: Access, month: string, project?: string, month
     if (amount !== null) entry.total = (entry.total ?? 0) + amount;
     else if (charge.amount_minor !== null) entry.fx_missing++;
     totals.set(charge.evidence, entry);
-    if (!actual || amount === null) continue;
+    if (!included || amount === null) continue;
+    totalIncluded = (totalIncluded ?? 0) + amount;
     if (amount > 0) {
       categories.set(charge.category, (categories.get(charge.category) ?? 0) + amount);
       const supplier = charge.supplier_id ? supplierNames.get(charge.supplier_id) : undefined;
@@ -84,7 +92,7 @@ export function summary({ data }: Access, month: string, project?: string, month
   const rank = (items: Map<string, number>) => [...items].map(([name,total]) => ({ name,total })).sort((a,b) => b.total-a.total);
   return {
     evidence: [...totals.values()], categories: rank(categories), suppliers: rank(suppliers), trend: [...trend.values()],
-    projects: [...projects].map(([project_id,total]) => ({ project_id,total })), unallocated,
+    projects: [...projects].map(([project_id,total]) => ({ project_id,total })), unallocated, totalIncluded,
   };
 }
 
@@ -95,10 +103,13 @@ export function allCharges({ data }: Access, month: string, filters: Search, mon
   const projects = new Map(data.projects.map(row => [row.id,row.name]));
   const project = filters.project === unassigned ? "" : isId(filters.project) ? filters.project : undefined;
   const supplier = filters.supplier === unassigned ? null : isId(filters.supplier) ? filters.supplier : undefined;
-  return data.charges.filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
+  const monthly = !filters.status || filters.status === includedStatus || filters.status === "manual"
+    ? monthlyManualCharges(data, month, next.slice(0, 7)) : [];
+  return [...data.charges, ...monthly].filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
       row.description.toLowerCase().includes(term) && (supplier === undefined || supplier === row.supplier_id) &&
       (!filters.category || filters.category === row.category) &&
-      (!filters.status || (filters.status === actualStatus ? row.evidence === "verified" || row.evidence === "provider" : filters.status === row.evidence)))
+      (!filters.status || (filters.status === actualStatus ? isActual(row.evidence)
+        : filters.status === includedStatus ? isIncluded(row.evidence) : filters.status === row.evidence)))
     .filter(row => {
       if (project === undefined) return true;
       const shares = chargeShares(row);

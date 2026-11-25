@@ -136,14 +136,18 @@ test("monthly subscriptions without a renewal date appear on the overview and ex
   const section = (name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
   for (const path of ["/", "/expenses"]) {
     await page.goto(path);
-    const forecast = page.locator("article").filter({ has: page.getByRole("heading", { name: "סך הוצאות צפוי לחודש" }) });
-    await expect(forecast.getByText(/כולל .*70\.00.* אומדני מנויים/)).toBeVisible();
+    const manual = page.locator("article").filter({ has: page.getByRole("heading", { name: "חיובים חודשיים ידניים" }) });
+    await expect(manual.getByText(/70\.00/)).toBeVisible();
     const panel = section("מנויים חודשיים");
     await expect(panel.getByRole("row").filter({ hasText: "מנוי בדיקה חודשי" })).toContainText(/20\.00/);
     const summary = section(path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית");
-    await expect(summary).toBeVisible();
-    await expect(summary.getByText("מנוי בדיקה חודשי")).toHaveCount(0);
+    await expect(summary.getByRole("rowheader", { name: "ספק בדיקה", exact: true })).toBeVisible();
   }
+  await page.goto("/reports");
+  await expect(page.getByRole("cell", { name: "חיוב חודשי ידני", exact: true })).toBeVisible();
+  const csv = await page.request.get("/api/export");
+  expect(csv.status()).toBe(200);
+  expect(await csv.text()).toContain('"מנוי בדיקה חודשי"');
 });
 
 test("shared password keeps a remembered browser signed in and grants viewer access", async ({ page, browser }) => {
