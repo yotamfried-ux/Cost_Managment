@@ -18,7 +18,10 @@ const accounts = await Promise.all(roles.map(async role => ({
 await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(data => {
   data.business.name = "סביבת בדיקה מבודדת";
   data.projects.push({ id: randomUUID(), name: "פרויקט בדיקה", description: "פרויקט מקומי לבדיקות", status: "active", monthly_budget_minor: 900000 });
-  data.suppliers.push({ id: randomUUID(), name: "ספק בדיקה", category: "כלים עסקיים" });
+  const supplierId = randomUUID();
+  data.suppliers.push({ id: supplierId, name: "ספק בדיקה", category: "כלים עסקיים" });
+  data.subscriptions.push({ id: randomUUID(), supplier_id: supplierId, label: "מנוי בדיקה חודשי", amount_minor: 2000,
+    currency: "USD", cycle: "monthly", status: "active", next_charge_on: null });
   const bytes = Buffer.from("%PDF-1.4\nGMAIL FIXTURE\n%%EOF");
   const id = randomUUID();
   data.inboxReceipts = [{ id, sender: "receipt@fixture.test", subject: "Receipt", receivedOn: businessDate(),

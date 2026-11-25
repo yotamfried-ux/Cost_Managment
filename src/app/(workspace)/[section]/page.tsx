@@ -9,7 +9,7 @@ import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { Distribution, Trend } from "@/components/charts";
-import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
+import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel } from "@/components/forms";
 
 type View = { access: Access; search: Search; month: string; edit: boolean };
@@ -49,6 +49,7 @@ async function Expenses({ access, month, search, edit }: View) {
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? result.rows : fxCandidates}/>}
     <ExpenseMetrics totals={totals} upcoming={upcoming}/>
+    <MonthlySubscriptions rows={subscriptions(access)} month={month}/>
     <Filters {...directory} path="/expenses" search={search}/>
     {detailed ? <Panel title={`רשימת הוצאות (${result.count})`}>
       <Charges rows={result.rows} projectShare={scoped}/><Pagination path="/expenses" search={search} total={result.count}/>

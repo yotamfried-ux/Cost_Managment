@@ -116,6 +116,18 @@ test("isolated viewer can read the workspace and cannot start expense creation",
   await expect(page.getByRole("heading", { name: "הוספת הוצאה" })).toHaveCount(0);
 });
 
+test("monthly subscriptions without a renewal date appear on the overview and expenses", async ({ page }) => {
+  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
+  await login(page, "owner");
+  for (const path of ["/", "/expenses"]) {
+    await page.goto(path);
+    const panel = page.getByRole("region", { name: "מנויים חודשיים" });
+    await expect(panel.getByRole("row").filter({ hasText: "מנוי בדיקה חודשי" })).toContainText(/20\.00/);
+    const summary = page.getByRole("region", { name: path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית" });
+    await expect(summary.getByText("מנוי בדיקה חודשי")).toHaveCount(0);
+  }
+});
+
 test("shared password keeps a remembered browser signed in and grants viewer access", async ({ page, browser }) => {
   test.skip(!process.env.D2R_SHARED_PASSWORD_HASH, "Requires shared access fixture");
   await page.goto("/sign-in");

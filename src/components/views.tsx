@@ -4,7 +4,7 @@ import { CalendarDays, CircleCheck, Database, FileText, Folder, Layers3, Sparkle
 import { formatMoney, monthOffset, monthTitle } from "@/lib/finance";
 import type { CostTotal, costBreakdown } from "@/lib/cost-breakdown";
 import { actualStatus, unassigned, type Summary, type Project, type Search, type Subscription } from "@/lib/queries";
-import { Blank, categoryNames, Chip, DataTable, formatAmount, href, Metrics, Panel, TextLink } from "./dashboard";
+import { Blank, categoryNames, Chip, DataTable, formatAmount, href, Metrics, Panel, SubscriptionRows, TextLink } from "./dashboard";
 import { Distribution, Trend } from "./charts";
 
 export function ExpenseMetrics({ totals, upcoming, home = false }: { totals: Summary; upcoming: Subscription[]; home?: boolean }) {
@@ -39,6 +39,16 @@ export function ExpenseCharts({ totals, month, title = "התפלגות הוצא�
     </Panel></div>
   </>;
 }
+
+export function MonthlySubscriptions({ rows, month }: { rows: Subscription[]; month: string }) {
+  const monthly = rows.filter(row => row.status === "active" && row.cycle === "monthly");
+  if (!monthly.length) return null;
+  return <Panel title="מנויים חודשיים" action={<TextLink to={href("/suppliers", { month })}>לספקים ומנויים</TextLink>}>
+    <p className="notice">מחירי מנויים פעילים לתכנון. סכומי החיוב בפועל מופיעים בסיכום ההוצאות לאחר שנקלטו.</p>
+    <SubscriptionRows rows={monthly}/>
+  </Panel>;
+}
+
 const projectStates: Record<string,string> = { active: "פעיל", planned: "בתכנון", archived: "בארכיון" };
 export function ProjectList({ projects, totals, month, compact = false }: { projects: Project[]; totals: Summary; month: string; compact?: boolean }) {
   if (!projects.length) return <Blank>טרם נוספו פרויקטים.</Blank>;
