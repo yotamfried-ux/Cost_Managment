@@ -55,7 +55,7 @@ async function Expenses({ access, month, search, edit }: View) {
     {!annual && <ExpenseMetrics totals={totals} upcoming={upcoming}/>}
     <MonthlySubscriptions rows={subscriptions(access)} month={month}/>
     <Filters {...directory} path="/expenses" search={search}/>
-    {detailed ? <Panel title={`רשימת הוצאות (${result.count})`} action={annual ? <span className="range-label">{start.slice(0, 4)}</span> : undefined}>
+    {detailed ? <Panel id="expense-transactions" title={`רשימת הוצאות (${result.count})`} action={annual ? <span className="range-label">{start.slice(0, 4)}</span> : undefined}>
       <Charges rows={result.rows} projectShare={scoped}/><Pagination path="/expenses" search={search} total={result.count}/>
     </Panel> : <SupplierCosts title={search.project === unassigned ? "עלויות ללא שיוך לפי ספק" : "סיכום חודשי לפי ספק תשתית"} group={group} path="/expenses" search={search}/>}
     <ExpenseCharts totals={totals} month={annual ? monthOffset(start, 11) : month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית" annual={annual}/>
@@ -88,7 +88,7 @@ async function Invoices({ access, month, search, edit }: View) {
   const bySupplier = new Map<string, { name: string; total: number; href: string }>();
   for (const row of current) {
     const supplier = row.supplier_id;
-    const item = bySupplier.get(supplier) ?? { name: row.suppliers?.name ?? "ללא ספק", total: 0, href: href("/invoices", { month, supplier }) };
+    const item = bySupplier.get(supplier) ?? { name: row.suppliers?.name ?? "ללא ספק", total: 0, href: href("/invoices", { month, supplier }) + "#invoice-documents" };
     item.total++;
     bySupplier.set(supplier, item);
   }
@@ -132,7 +132,7 @@ async function Invoices({ access, month, search, edit }: View) {
     </Panel>}
     <Filters path="/invoices" search={search} suppliers={directory.suppliers} invoice/>
     <div className={item ? "with-drawer" : undefined}>
-      <Panel title={`מסמכי חשבוניות (${result.count})`}>
+      <Panel id="invoice-documents" title={`מסמכי חשבוניות (${result.count})`}>
         <InvoiceRows rows={result.rows} search={search}/><Pagination path="/invoices" search={search} total={result.count}/>
       </Panel>
       {item && <Panel title="פרטי חשבונית" action={<Link className="icon-button" href={href("/invoices", search, { invoice: undefined })} aria-label="סגירת פרטי חשבונית"><X size={17}/></Link>}>
@@ -174,7 +174,7 @@ async function Suppliers({ access, month, search, edit }: View) {
       { label: "מנויים פעילים", value: all.filter(row => row.status === "active").length, detail: "לפי נתוני המנויים בסביבת העבודה", icon: CreditCard },
     ]}/>
     <div className="split wide-first"><Panel title="פילוח הוצאות לפי ספק"><Distribution rows={totals.suppliers.map(row => ({
-      ...row, href: href("/expenses", { month, supplier: directory.suppliers.find(s => s.name === row.name)?.id, status: includedStatus, view: "transactions", positive: "1" }),
+      ...row, href: href("/expenses", { month, supplier: directory.suppliers.find(s => s.name === row.name)?.id, status: includedStatus, view: "transactions", positive: "1" }) + "#expense-transactions",
     }))} label="הוצאות חיוביות בש״ח"/></Panel>
       <Panel title="חידושים קרובים"><SubscriptionRows rows={next.slice(0,4)} upcoming/></Panel></div>
     <Panel title="רשימת ספקים" action={<form className="small-filter" action="/suppliers"><input type="hidden" name="month" value={month}/>

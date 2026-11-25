@@ -34,7 +34,7 @@ export function ExpenseCharts({ totals, month, title = "התפלגות הוצא�
     <div className="split charts-row"><Panel title={title}>
       <Distribution rows={totals.categories.map(row => ({ ...row, href: href("/expenses", {
         month, category: row.name, project, period: annual ? "annual" : undefined, view: "transactions", status: includedStatus, positive: "1",
-      }) }))} label="הוצאות חיוביות בש״ח"/>
+      }) + "#expense-transactions" }))} label="הוצאות חיוביות בש״ח"/>
     </Panel><Panel title={trendTitle} action={<span className="range-label">12 חודשים</span>}>
       <Trend rows={trends} firstLabel="הוצאות מאומתות" secondLabel="נתוני ספק וחיובים ידניים"/>
     </Panel></div>
@@ -84,7 +84,7 @@ export function ProjectMetrics({ projects, totals }: { projects: Project[]; tota
   ]}/>;
 }
 export function ProjectDistribution({ totals, projects, month, annual }: { totals: Summary; projects: Project[]; month: string; annual?: boolean }) {
-  const link = (project: string) => href("/expenses", { month, project, period: annual ? "annual" : undefined, view: "transactions", status: includedStatus });
+  const link = (project: string) => href("/expenses", { month, project, period: annual ? "annual" : undefined, view: "transactions", status: includedStatus }) + "#expense-transactions";
   const rows = totals.projects.filter(row => row.total > 0).map(row => ({ name: projects.find(item => item.id === row.project_id)?.name ?? "פרויקט", total: row.total, href: link(row.project_id) }));
   if ((totals.unallocated ?? 0) > 0) rows.push({ name: "ללא שיוך", total: totals.unallocated!, href: link(unassigned) });
   return <Distribution rows={rows} label="הוצאות חיוביות בש״ח"/>;

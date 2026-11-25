@@ -38,8 +38,8 @@ export function Metrics({ metrics }: { metrics: Metric[] }) {
     </div></article>)}</section>;
 }
 
-export function Panel({ title, action, children, className = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return <section className={`panel content-panel ${className}`}><div className="panel-heading"><h2>{title}</h2>{action}</div>{children}</section>;
+export function Panel({ title, action, children, className = "", id }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
+  return <section id={id} className={`panel content-panel ${className}`}><div className="panel-heading"><h2>{title}</h2>{action}</div>{children}</section>;
 }
 
 export function TextLink({ to, children }: { to: string; children: React.ReactNode }) {
