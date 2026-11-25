@@ -21,7 +21,8 @@ export const providerCatalog = [
 ] as const;
 export type ProviderKey = (typeof providerCatalog)[number][0];
 
-export type ProviderCost = { key: string; start: string; end: string; label: string; minor: number; currency: string };
+export type ProviderCost = { key: string; start: string; end: string; label: string; minor: number; currency: string;
+  vercelBreakdown?: { platformMinor: number; projects: { id: string; minor: number }[] } };
 export interface CostConnector {
   provider: ProviderKey;
   syncCosts(input: { start: string; end: string; account: string }): Promise<ProviderCost[]>;

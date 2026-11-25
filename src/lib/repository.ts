@@ -10,7 +10,7 @@ import type { FutureFinance } from "./plugins";
 import type { PaymentDocument } from "./payment-documents";
 
 export type Role = "owner" | "editor" | "viewer";
-export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null };
+export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null; vercelProjectIds?: string[] };
 export type Supplier = { id: string; name: string; category: string };
 export type Charge = {
   id: string; description: string; recorded_on: string; amount_minor: number | null; currency: string; evidence: Evidence;
@@ -18,6 +18,7 @@ export type Charge = {
   request_id: string; allocations?: Allocation[]; project_id: string | null; invoice_id: string | null;
   exchange_rate?: { quote: string; date: string; source: string };
   account_id?: string; external_key?: string; billing_period_end?: string;
+  vercelBreakdown?: { platformMinor: number; projects: { id: string; minor: number }[] };
 };
 export type Invoice = {
   id: string; invoice_number: string; original_name: string; issued_on: string; supplier_id: string; currency: string;

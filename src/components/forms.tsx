@@ -43,6 +43,7 @@ export function FormPanel({ kind, path, month, projects, suppliers, receipt, can
           <label>תיאור<input name="description" maxLength={400}/></label>
           <label>סטטוס<select name="status"><option value="active">פעיל</option><option value="planned">בתכנון</option><option value="archived">בארכיון</option></select></label>
           <label>תקציב חודשי בש״ח<input name="budget" inputMode="decimal" dir="ltr"/></label>
+          <label>מזהי פרויקטים ב־Vercel<input name="vercelProjects" dir="ltr" maxLength={520} placeholder="prj_…"/></label>
         </>}
         {kind === "supplier" && <><label>שם ספק<input name="name" required maxLength={100}/></label><Category/></>}
         {kind === "subscription" && <>

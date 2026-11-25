@@ -13,6 +13,7 @@ import { nextGmailPage } from "../src/lib/gmail-receipts";
 import { ingestCost, registerVercelBilling } from "../src/lib/ledger";
 import { googleBillingConnector } from "../src/lib/google-billing";
 import { monthlyManualCharges } from "../src/lib/monthly-charges";
+import { reportCharges } from "../src/lib/report-charges";
 import { JWT } from "google-auth-library";
 
 test("Jerusalem month coverage and currency minor units", () => {
@@ -249,12 +250,32 @@ test("GitHub usage with zero net cost is not converted into gross charges", asyn
 
 test("Vercel uses billed cost from the complete billing export for the requested team", async t => {
   t.mock.method(globalThis, "fetch", async () => new Response([
-    JSON.stringify({ BilledCost: 0.125, EffectiveCost: 8, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture" }),
-    JSON.stringify({ BilledCost: "-0.025", EffectiveCost: 0, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture" }),
+    JSON.stringify({ BilledCost: 0.126, EffectiveCost: 8, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture", Tags: { ProjectId: "prj_fixtureTest" } }),
+    JSON.stringify({ BilledCost: "-0.026", EffectiveCost: 0, BillingCurrency: "USD", ChargePeriodEnd: "2026-11-19T08:00:00Z", SubAccountId: "team_fixture" }),
   ].join("\n"), { headers: { "Content-Type": "application/jsonl" } }));
   const rows = await vercelConnector("fixture").syncCosts({ start: "2026-11-19", end: "2026-11-20", account: "team_fixture" });
   assert.equal(rows[0].minor, 10);
   assert.equal(rows[0].start, "2026-11-19");
+  assert.deepEqual(rows[0].vercelBreakdown, { platformMinor: 0, projects: [{ id: "prj_fixtureTest", minor: 13 }] });
+});
+
+test("Vercel reporting attributes tagged cost and counts the configured fee once", () => {
+  const data = emptyData();
+  const month = businessDate().slice(0, 7);
+  const date = month + "-01";
+  data.usdReferenceRate = { quoted: date, quote: "3.345" };
+  data.projects.push({ id: "product", name: "Project", status: "active", description: "", monthly_budget_minor: null, vercelProjectIds: ["prj_fixtureTest"] });
+  data.subscriptions.push({ id: "sub", supplier_id: "vercel", label: "Vercel Pro", currency: "USD", amount_minor: 2000,
+    status: "active", cycle: "monthly", next_charge_on: null, starts_on: date });
+  data.charges.push({ id: "original", request_id: "receipt", description: "Vercel aggregate", source: "vercel",
+    recorded_on: date, category: "פיתוח והרצה", amount_minor: 120, currency: "USD", evidence: "provider", supplier_id: "vercel",
+    amount_ils_minor: 401, exchange_rate: { quote: "3.345", date, source: "fixture" }, invoice_id: null, project_id: null,
+    vercelBreakdown: { platformMinor: 90, projects: [{ id: "prj_fixtureTest", minor: 20 }, { id: "prj_unknownProject", minor: 3 }] } });
+  const entries = () => reportCharges(data, month, monthOffset(month, 1));
+  assert.deepEqual(entries().map(row => [row.project_id, row.amount_minor]), [[null, 10], ["product", 20], [null, 2000]]);
+  assert.equal(entries().reduce((total, row) => total + (row.amount_ils_minor ?? 0), 0), 6790);
+  data.subscriptions = [];
+  assert.equal(entries().reduce((total, row) => total + (row.amount_ils_minor ?? 0), 0), 401);
 });
 
 test("Gmail receipt intake requires allowlisted sender and matching Gmail DKIM", async () => {

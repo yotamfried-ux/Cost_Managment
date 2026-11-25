@@ -1,5 +1,15 @@
 export type Allocation = { projectId: string; basisPoints: number };
 
+export function roundParts(values: number[], roundedTotal: number) {
+  const parts = values.map((value, index) => ({ index, whole: Math.floor(value), fraction: value - Math.floor(value) }));
+  const extra = roundedTotal - parts.reduce((sum, part) => sum + part.whole, 0);
+  if (extra < 0 || extra > parts.length) throw new Error("Invalid rounded parts");
+  parts.sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+  const result: number[] = [];
+  parts.forEach(({ index, whole }, position) => { result[index] = whole + Number(position < extra); });
+  return result;
+}
+
 export function splitAmount(minor: number, shares: Allocation[]) {
   const assigned = shares.reduce((total, item) => total + item.basisPoints, 0);
   if (assigned > 10_000 || !Number.isSafeInteger(minor)) throw new Error("Invalid allocation");

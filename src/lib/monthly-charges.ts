@@ -43,7 +43,7 @@ function manualChargesForMonth(
   const name = (label: string) => label.split(" · ", 1)[0].trim().toLowerCase();
   const remaining = monthly.filter(subscription => {
     const matches = available.get(subscription.supplier_id);
-    const matched = matches?.findIndex(charge => name(charge.description) === name(subscription.label)) ?? -1;
+    const matched = matches?.findIndex(charge => !charge.vercelBreakdown && name(charge.description) === name(subscription.label)) ?? -1;
     if (matched < 0 || !matches) return true;
     matches.splice(matched, 1);
     return false;
@@ -55,7 +55,7 @@ function manualChargesForMonth(
   const projected: Charge[] = [];
   for (const subscription of remaining) {
     const matches = available.get(subscription.supplier_id);
-    const matched = matches?.findIndex(charge => charge.currency === subscription.currency &&
+    const matched = matches?.findIndex(charge => !charge.vercelBreakdown && charge.currency === subscription.currency &&
       charge.amount_minor === subscription.amount_minor) ?? -1;
     if (matched >= 0 && matches) {
       matches.splice(matched, 1);

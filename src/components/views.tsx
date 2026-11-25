@@ -21,8 +21,8 @@ export function ExpenseMetrics({ totals, upcoming }: { totals: Summary; upcoming
     { label: "חיובים קרובים", value: formatAmount(upcomingAmount), detail: `${upcoming.length} התחייבויות ב־14 הימים הקרובים`, icon: CalendarDays, tone: "neutral" },
   ]}/>;
 }
-export function ExpenseCharts({ totals, month, title = "התפלגות הוצאות", trendTitle = "מגמת הוצאות" }: {
-  totals: Summary; month: string; title?: string; trendTitle?: string;
+export function ExpenseCharts({ totals, month, title = "התפלגות הוצאות", trendTitle = "מגמת הוצאות", project, annual }: {
+  totals: Summary; month: string; title?: string; trendTitle?: string; project?: string; annual?: boolean;
 }) {
   const trends = Array.from({ length: 12 }, (_, index) => monthOffset(month, index - 11)).map(key => {
     const event = totals.trend.find(row => row.month === key);
@@ -32,7 +32,9 @@ export function ExpenseCharts({ totals, month, title = "התפלגות הוצא�
   return <>
     {omitted > 0 && <p className="notice" role="status">{omitted} הוצאות במטבע זר ללא שער המרה. סכומיהן המקוריים זמינים ברשימת ההוצאות.</p>}
     <div className="split charts-row"><Panel title={title}>
-      <Distribution rows={totals.categories} label="הוצאות חיוביות בש״ח"/>
+      <Distribution rows={totals.categories.map(row => ({ ...row, href: href("/expenses", {
+        month, category: row.name, project, period: annual ? "annual" : undefined, view: "transactions", status: includedStatus, positive: "1",
+      }) }))} label="הוצאות חיוביות בש״ח"/>
     </Panel><Panel title={trendTitle} action={<span className="range-label">12 חודשים</span>}>
       <Trend rows={trends} firstLabel="הוצאות מאומתות" secondLabel="נתוני ספק וחיובים ידניים"/>
     </Panel></div>
@@ -81,9 +83,10 @@ export function ProjectMetrics({ projects, totals }: { projects: Project[]; tota
     { label: "עלויות ללא שיוך", value: formatAmount(totals.unallocated), detail: "מאומת ונתוני ספק · סכומים בש״ח", icon: FileText },
   ]}/>;
 }
-export function ProjectDistribution({ totals, projects }: { totals: Summary; projects: Project[] }) {
-  const rows = totals.projects.filter(row => row.total > 0).map(row => ({ name: projects.find(item => item.id === row.project_id)?.name ?? "פרויקט", total: row.total }));
-  if ((totals.unallocated ?? 0) > 0) rows.push({ name: "ללא שיוך", total: totals.unallocated! });
+export function ProjectDistribution({ totals, projects, month, annual }: { totals: Summary; projects: Project[]; month: string; annual?: boolean }) {
+  const link = (project: string) => href("/expenses", { month, project, period: annual ? "annual" : undefined, view: "transactions", status: includedStatus });
+  const rows = totals.projects.filter(row => row.total > 0).map(row => ({ name: projects.find(item => item.id === row.project_id)?.name ?? "פרויקט", total: row.total, href: link(row.project_id) }));
+  if ((totals.unallocated ?? 0) > 0) rows.push({ name: "ללא שיוך", total: totals.unallocated!, href: link(unassigned) });
   return <Distribution rows={rows} label="הוצאות חיוביות בש״ח"/>;
 }
 
@@ -148,6 +151,8 @@ export function Filters({ path, search, projects = [], suppliers, invoice = fals
   return <form action={path} className="panel filters">
     <input type="hidden" name="month" value={search.month}/>
     {search.view === "transactions" && <input type="hidden" name="view" value="transactions"/>}
+    {search.period === "annual" && <input type="hidden" name="period" value="annual"/>}
+    {search.positive === "1" && <input type="hidden" name="positive" value="1"/>}
     <label className="filter-search"><span className="visually-hidden">חיפוש</span><input type="search" name="q" defaultValue={search.q} placeholder={invoice ? "חיפוש במסמכים..." : "חיפוש בהוצאות..."}/></label>
     {!invoice && <label><span className="visually-hidden">פרויקט</span><select name="project" defaultValue={search.project ?? ""}><option value="">כל הפרויקטים</option><option value={unassigned}>ללא שיוך לפרויקט</option>{projects.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>}
     {!invoice && <label><span className="visually-hidden">קטגוריה</span><select name="category" defaultValue={search.category ?? ""}><option value="">כל הקטגוריות</option>{categoryNames.map(name => <option key={name}>{name}</option>)}</select></label>}
@@ -156,7 +161,7 @@ export function Filters({ path, search, projects = [], suppliers, invoice = fals
         <>{search.view === "transactions" && <><option value={includedStatus}>כל החיובים הכלולים בסכום</option><option value={actualStatus}>מאומת ונתוני ספק</option></>}<option value="verified">מאומת</option><option value="provider">נתוני ספק</option><option value="manual">חיוב חודשי ידני</option><option value="estimate">אומדן</option><option value="missing">חסר מקור</option></>}</select></label>
     <label><span className="visually-hidden">ספק</span><select name="supplier" defaultValue={search.supplier ?? ""}><option value="">כל הספקים</option>{!invoice && <option value={unassigned}>ללא ספק</option>}{suppliers.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
     <label><span className="visually-hidden">סדר תאריך</span><select name="sort" defaultValue={search.sort ?? ""}><option value="">מהחדש לישן</option><option value="oldest">מהישן לחדש</option></select></label>
-    <button className="button">סינון</button><Link href={href(path, { month: search.month, view: search.view })} className="button">ניקוי</Link>
+    <button className="button">סינון</button><Link href={href(path, { month: search.month, view: search.view, period: search.period })} className="button">ניקוי</Link>
   </form>;
 }
 

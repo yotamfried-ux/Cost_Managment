@@ -29,6 +29,6 @@ export default async function ProjectDetail({ params, searchParams }: { params: 
     {expenses ? <Panel title="הוצאות משויכות"><Charges rows={expenses.rows} projectShare/>
       <Pagination path={path} search={{ ...search, month }} total={expenses.count}/></Panel>
       : <SupplierCosts title="עלות הפרויקט לפי ספק תשתית" group={costs} path={path} search={{ month }}/>}
-    <ExpenseCharts totals={totals} month={month} title="התפלגות עלויות הפרויקט"/>
+    <ExpenseCharts totals={totals} month={month} project={id} title="התפלגות עלויות הפרויקט"/>
   </>;
 }

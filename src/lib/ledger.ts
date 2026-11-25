@@ -82,6 +82,7 @@ export function ingestCost(data: WorkspaceData, accountId: string, event: Provid
   if (charge) {
     const before = { ...charge };
     charge.amount_minor = event.minor;
+    if (event.vercelBreakdown) charge.vercelBreakdown = event.vercelBreakdown;
     charge.amount_ils_minor = event.currency === "ILS" ? event.minor : null;
     if (charge.exchange_rate) applyExchangeRate(charge, { quote: charge.exchange_rate.quote, quoted: charge.exchange_rate.date, source: charge.exchange_rate.source });
     audit(data, "sync", "charges", "UPDATE", charge, before);
@@ -93,6 +94,7 @@ export function ingestCost(data: WorkspaceData, accountId: string, event: Provid
     recorded_on: event.start, billing_period_end: event.end, amount_minor: event.minor, currency: event.currency,
     evidence: "provider", source: account.provider, supplier_id: account.supplier_id, amount_ils_minor: event.currency === "ILS" ? event.minor : null,
     project_id: null, invoice_id: null, account_id: accountId, external_key: event.key,
+    ...(event.vercelBreakdown ? { vercelBreakdown: event.vercelBreakdown } : {}),
   };
   data.charges.unshift(entry);
   audit(data, "sync", "charges", "INSERT", entry);

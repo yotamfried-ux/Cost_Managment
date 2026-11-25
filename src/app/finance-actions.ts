@@ -10,12 +10,14 @@ import { applyExchangeRate, audit, flagCharge, matchInvoice } from "@/lib/ledger
 import { providerCatalog } from "@/lib/connectors";
 import { cleanFilename, pdfMaxSize, validPdf } from "@/lib/documents";
 import type { Charge, Invoice } from "@/lib/repository";
+import { syncCosts } from "@/lib/sync-costs";
 
 const required = (length: number) => z.string().trim().min(1).max(length);
 const optionalId = z.preprocess(value => value || null, z.uuid().nullable());
 const date = z.iso.date();
 const money = z.string().trim().regex(/^\d{1,10}(\.\d{1,3})?$/);
 const currenciesSchema = z.enum(currencies);
+const vercelProjectIds = z.array(z.string().regex(/^prj_[A-Za-z0-9]{10,60}$/)).max(8);
 const allowed = new Map([
   ["expense", ["/", "/expenses"]], ["project", ["/projects"]], ["supplier", ["/suppliers"]],
   ["subscription", ["/suppliers"]], ["invoice", ["/invoices"]], ["match", ["/invoices"]],
@@ -75,8 +77,12 @@ export async function mutate(kind: string, form: FormData) {
         case "project": {
           const item = z.object({ name: required(100), description: z.string().trim().max(400), status: z.enum(["active","planned","archived"]), budget: money.or(z.literal("")) }).parse(fields);
           if (data.projects.some(row => row.name === item.name)) throw new Error("Project exists");
+          const bindings = vercelProjectIds.parse(String(fields.vercelProjects ?? "").split(/[\s,]+/).filter(Boolean));
+          if (new Set(bindings).size !== bindings.length ||
+              data.projects.some(row => row.vercelProjectIds?.some(id => bindings.includes(id)))) throw new Error("Vercel project already assigned");
           const project = { id: randomUUID(), name: item.name, description: item.description, status: item.status,
-            monthly_budget_minor: item.budget ? minorUnits(item.budget, "ILS") : null };
+            monthly_budget_minor: item.budget ? minorUnits(item.budget, "ILS") : null,
+            ...(bindings.length ? { vercelProjectIds: bindings } : {}) };
           data.projects.push(project);
           audit(data, actor, "projects", "INSERT", project);
           break;
@@ -186,4 +192,14 @@ export async function mutate(kind: string, form: FormData) {
   }
   revalidatePath("/", "layout");
   redirect(href("saved=1"));
+}
+
+export async function syncVercel(form: FormData) {
+  const { ledger, role } = await requireWorkspace();
+  const base = "/integrations?month=" + resolveMonth(String(form.get("month")));
+  if (!ledger || role !== "owner") redirect(base + "&error=permission");
+  const result = await syncCosts(ledger, "vercel").catch(() => null);
+  if (!result?.checked || result.failed) redirect(base + "&error=save");
+  revalidatePath("/", "layout");
+  redirect(base + "&saved=1");
 }
