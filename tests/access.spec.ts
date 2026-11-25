@@ -119,11 +119,13 @@ test("isolated viewer can read the workspace and cannot start expense creation",
 test("monthly subscriptions without a renewal date appear on the overview and expenses", async ({ page }) => {
   test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
   await login(page, "owner");
+  const section = (name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
   for (const path of ["/", "/expenses"]) {
     await page.goto(path);
-    const panel = page.getByRole("region", { name: "מנויים חודשיים" });
+    const panel = section("מנויים חודשיים");
     await expect(panel.getByRole("row").filter({ hasText: "מנוי בדיקה חודשי" })).toContainText(/20\.00/);
-    const summary = page.getByRole("region", { name: path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית" });
+    const summary = section(path === "/" ? "הוצאות החודש לפי ספק" : "סיכום חודשי לפי ספק תשתית");
+    await expect(summary).toBeVisible();
     await expect(summary.getByText("מנוי בדיקה חודשי")).toHaveCount(0);
   }
 });
