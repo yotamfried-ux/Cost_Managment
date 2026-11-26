@@ -171,6 +171,7 @@ test("monthly review separates documented costs, shared charges and invoices awa
   await page.goto("/?month=" + monthOffset(businessDate().slice(0, 7), -1));
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "מה דורש טיפול", exact: true }) });
   await expect(panel.getByText("חסרה אסמכתת תשלום מזוהה")).toBeVisible();
+  await expect(panel.getByRole("row").filter({ hasText: "Vercel" })).toContainText("יש מסמך תומך · נדרש אימות");
   await panel.getByRole("link", { name: "Hetzner", exact: true }).click();
   await expect(page.getByRole("heading", { name: "פרטי חשבונית", exact: true })).toBeVisible();
 });

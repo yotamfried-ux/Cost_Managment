@@ -30,13 +30,24 @@ await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(da
   const supplier = { id: randomUUID(), name: "Hetzner", category: "תשתיות ענן" };
   data.suppliers.push(supplier);
   const invoiceId = randomUUID();
+  const invoiceDate = monthOffset(businessDate().slice(0, 7), -1) + "-01";
   const invoiceBytes = Buffer.from("%PDF-1.4\nHETZNER FIXTURE\n%%EOF");
   data.invoices.push({ id: invoiceId, supplier_id: supplier.id, invoice_number: "FIX-HETZNER",
-    issued_on: monthOffset(businessDate().slice(0, 7), -1) + "-01", currency: "USD", amount_minor: 1000,
+    issued_on: invoiceDate, currency: "USD", amount_minor: 1000,
     status: "review", sha256: createHash("sha256").update(invoiceBytes).digest("hex"), original_name: "hetzner.pdf" });
+  const vercel = { id: randomUUID(), name: "Vercel", category: "פיתוח והרצה" };
+  const vercelInvoice = { id: randomUUID(), bytes: Buffer.from("%PDF-1.4\nVERCEL FIXTURE\n%%EOF") };
+  const supporting = { id: randomUUID(), bytes: Buffer.from("%PDF-1.4\nSUPPORTING FIXTURE\n%%EOF") };
+  data.suppliers.push(vercel);
+  data.invoices.push({ id: vercelInvoice.id, supplier_id: vercel.id, invoice_number: "FIX-VERCEL",
+    issued_on: invoiceDate, currency: "USD", amount_minor: 2000,
+    status: "review", sha256: createHash("sha256").update(vercelInvoice.bytes).digest("hex"), original_name: "vercel.pdf" });
+  data.inboxReceipts.push({ id: supporting.id, sender: "receipt@vercel.com", subject: "Receipt", receivedOn: invoiceDate,
+    originalName: "supporting.pdf", digest: createHash("sha256").update(supporting.bytes).digest("hex"), messageId: "b", attachmentId: "b",
+    supportingInvoiceId: vercelInvoice.id });
   data.gmailRuns = [{ at: new Date().toISOString(), status: "failed", reason: "invalid_grant",
     added: 0, filed: 0, paid: 0, linked: 0, review: null, hasMore: false }];
-  return { result: true, documents: [{ id, bytes }, { id: invoiceId, bytes: invoiceBytes }] };
+  return { result: true, documents: [{ id, bytes }, { id: invoiceId, bytes: invoiceBytes }, vercelInvoice, supporting] };
 });
 if (process.env.GITHUB_ACTIONS) {
   for (const secret of [password, dataKey.toString("base64url"), sessionKey, ...accounts.map(row => row.totpSecret)]) console.log("::add-mask::" + secret);

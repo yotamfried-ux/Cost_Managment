@@ -5,8 +5,12 @@ import { Blank, Chip, DataTable, formatAmount, href, Panel, TextLink } from "./d
 
 export function FinanceReview({ access, month, totals }: { access: Access; month: string; totals: Summary }) {
   const { data } = access;
-  const confirmedReceipts = new Set((data.inboxReceipts ?? []).filter(row => row.paymentData?.kind === "receipt")
-    .map(row => row.supportingInvoiceId ?? row.id));
+  const inbox = data.inboxReceipts ?? [];
+  const support = new Set(inbox.flatMap(row => row.supportingInvoiceId ? [row.supportingInvoiceId] : []));
+  const confirmedReceipts = new Set([
+    ...inbox.filter(row => row.paymentData?.kind === "receipt").map(row => row.supportingInvoiceId ?? row.id),
+    ...data.charges.flatMap(row => row.evidence === "verified" && row.source === "gmail" && row.invoice_id ? [row.invoice_id] : []),
+  ]);
   const pending = data.invoices.filter(row => row.issued_on.startsWith(month) && (row.status === "review" || !confirmedReceipts.has(row.id)))
     .sort((a, b) => b.issued_on.localeCompare(a.issued_on));
   const names = new Map(data.suppliers.map(row => [row.id, row.name]));
@@ -44,7 +48,8 @@ export function FinanceReview({ access, month, totals }: { access: Access; month
           <th scope="row"><TextLink to={href("/invoices", { month, invoice: row.id }) + "#invoice-documents"}>
             {names.get(row.supplier_id) ?? "פתיחת חשבונית"}</TextLink></th>
           <td><bdi>{formatMoney(row.amount_minor, row.currency)}</bdi></td>
-          <td><Chip tone="pending">{confirmedReceipts.has(row.id) ? "יש קבלה · נדרשת התאמה" : "חסרה אסמכתת תשלום מזוהה"}</Chip></td>
+          <td><Chip tone="pending">{confirmedReceipts.has(row.id) ? "יש קבלה · נדרשת התאמה"
+            : support.has(row.id) ? "יש מסמך תומך · נדרש אימות" : "חסרה אסמכתת תשלום מזוהה"}</Chip></td>
         </tr>)}
       </DataTable> : <Blank>אין חשבוניות שממתינות להתאמה או לאימות תשלום בחודש שנבחר.</Blank>}
       {needsFx > 0 && <p className="notice">{needsFx} חיובים חסרים שער המרה ולכן מוצגים במטבע המקורי.</p>}
