@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { House, Layers3, CreditCard, FileText, UsersRound, ChartNoAxesColumnIncreasing, Settings, Plug, ArrowLeft, Bell, CalendarDays, Search, ChevronDown, Menu } from "lucide-react";
+import { House, Layers3, CreditCard, FileText, UsersRound, ChartNoAxesColumnIncreasing, Settings, Plug, ArrowLeft, Bell, CalendarDays, Search, ChevronDown, Menu, Target, UserRoundCheck, Megaphone } from "lucide-react";
 import { Brand } from "./brand";
 import { signOut } from "@/app/auth-actions";
 import { monthTitle, resolveMonth } from "@/lib/finance";
 
 const links = [
   ["/","סקירה",House], ["/projects","פרויקטים",Layers3], ["/expenses","הוצאות",CreditCard],
-  ["/invoices","חשבוניות",FileText], ["/suppliers","ספקים",UsersRound], ["/reports","דוחות",ChartNoAxesColumnIncreasing],
+  ["/invoices","חשבוניות",FileText], ["/suppliers","ספקים",UsersRound],
+  ["/leads","לידים",Target], ["/customers","לקוחות",UserRoundCheck], ["/marketing","שיווק",Megaphone], ["/reports","דוחות",ChartNoAxesColumnIncreasing],
   ["/integrations","אינטגרציות",Plug], ["/settings","הגדרות",Settings],
 ] as const;
 
@@ -22,8 +23,8 @@ export function Shell({ initials, notifications, children }: { initials: string;
     <a href="#main-content" className="skip-link">דילוג לתוכן</a>
     <aside className="sidebar">
       <Link className="sidebar-logo" href={`/?month=${month}`} aria-label="D2R Management, סקירה"><Brand /></Link>
-      <nav aria-label="ניווט ראשי">{links.map(([url,label,Icon], index) =>
-        <Link key={url} href={`${url}?month=${month}`} className={`nav-link ${index === 6 ? "nav-divider" : ""}`} aria-current={(url === "/" ? path === "/" : path.startsWith(url)) ? "page" : undefined}>
+      <nav aria-label="ניווט ראשי">{links.map(([url,label,Icon]) =>
+        <Link key={url} href={`${url}?month=${month}`} className={`nav-link ${url === "/integrations" ? "nav-divider" : ""}`} aria-current={(url === "/" ? path === "/" : path.startsWith(url)) ? "page" : undefined}>
           <Icon size={19} aria-hidden="true" /><span>{label}</span>
         </Link>)}</nav>
       <section className="annual">

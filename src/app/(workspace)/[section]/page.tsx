@@ -11,12 +11,14 @@ import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, forma
 import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel } from "@/components/forms";
+import { CustomersView, LeadsView, MarketingView } from "@/components/business-views";
 
 type View = { access: Access; search: Search; month: string; edit: boolean };
 
 const pages: Record<string, (view: View) => Promise<React.ReactNode>> = {
   expenses: Expenses, projects: Projects, invoices: Invoices, suppliers: Suppliers,
   reports: Reports, integrations: Integrations, settings: Settings,
+  leads: Leads, customers: Customers, marketing: Marketing,
 };
 
 export default async function Section({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<Search> }) {
@@ -26,6 +28,16 @@ export default async function Section({ params, searchParams }: { params: Promis
   const input = searchFields(raw);
   const month = resolveMonth(input.month);
   return pages[section]({ access, month, search: { ...input, month }, edit: access.role !== "viewer" });
+}
+
+async function Leads({ access, month }: View) {
+  return <><PageTitle title="לידים" description="פניות ולקוחות פוטנציאליים שהסוכן קלט, עם הסכמה ומעקב." icon={UsersRound}/><LeadsView data={access.data} month={month}/></>;
+}
+async function Customers({ access }: View) {
+  return <><PageTitle title="לקוחות" description="לקוחות פעילים לפי מוצר." icon={UsersRound}/><CustomersView data={access.data}/></>;
+}
+async function Marketing({ access, month }: View) {
+  return <><PageTitle title="שיווק" description="פוסטים וביצועים מהרשתות החברתיות, מנתוני הרשתות עצמן." icon={ChartNoAxesColumnIncreasing}/><MarketingView data={access.data} month={month}/></>;
 }
 
 async function Expenses({ access, month, search, edit }: View) {
