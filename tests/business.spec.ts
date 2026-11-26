@@ -31,9 +31,9 @@ test("signed batch is stored once and shown in the new screens, which pass acces
 
   await page.goto("/sign-in");
   const form = page.getByRole("form", { name: "כניסה לחשבון אישי" });
-  await form.getByLabel("דואר אלקטרוני").fill("owner@d2r.test");
+  await form.getByLabel("דואר אלקטרוני").fill("editor@d2r.test");
   await form.getByLabel("סיסמת חשבון").fill(process.env.D2R_TEST_PASSWORD!);
-  await form.getByLabel("קוד אימות").fill(totp(authConfig()!.accounts.find(row => row.role === "owner")!.totpSecret));
+  await form.getByLabel("קוד אימות").fill(totp(authConfig()!.accounts.find(row => row.role === "editor")!.totpSecret));
   await form.getByRole("button", { name: /כניסה/ }).click();
   await expect(page.getByRole("heading", { name: "ניהול העסק" })).toBeVisible();
 

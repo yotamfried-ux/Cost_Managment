@@ -13,7 +13,7 @@ const dataKey = randomBytes(32);
 const sessionKey = randomBytes(32).toString("base64url");
 const password = randomBytes(20).toString("base64url");
 const agentSecret = randomBytes(24).toString("hex");
-const roles = ["owner", "viewer"] as const;
+const roles = ["owner", "editor", "viewer"] as const;
 const accounts = await Promise.all(roles.map(async role => ({
   email: role + "@d2r.test", role, passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)),
 })));
