@@ -145,6 +145,13 @@ test("monthly subscriptions without a renewal date appear on the overview and ex
   }
   await page.goto("/reports");
   await expect(page.getByRole("cell", { name: "חיוב חודשי ידני", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "עבור לסיכום שנתי" }).click();
+  const category = page.locator(".chart-legend").getByRole("link", { name: /כלים עסקיים/ }).first();
+  await expect(category).toHaveAttribute("href", /period=annual/);
+  await category.click();
+  await expect(page.getByRole("heading", { name: /רשימת הוצאות/ })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("category")).toBe("כלים עסקיים");
+  await expect(page.locator("#expense-transactions").getByRole("cell", { name: "מנוי בדיקה חודשי", exact: true })).toBeVisible();
   const csv = await page.request.get("/api/export");
   expect(csv.status()).toBe(200);
   expect(await csv.text()).toContain('"מנוי בדיקה חודשי"');

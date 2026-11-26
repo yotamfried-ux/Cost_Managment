@@ -1,14 +1,14 @@
 import { businessDate, monthOffset, type Evidence } from "./finance";
 import { chargeShares, splitAmount } from "./allocation";
-import { monthlyManualCharges } from "./monthly-charges";
+import { reportCharges } from "./report-charges";
 import type { requireWorkspace } from "./session";
 import type { Charge as StoredCharge, Invoice as StoredInvoice, Subscription as StoredSubscription } from "./repository";
 export type { Project, Supplier } from "./repository";
 
 export type Access = Awaited<ReturnType<typeof requireWorkspace>>;
-export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; receipt?: string; add?: string; period?: string; view?: string };
+export type Search = { month?: string; q?: string; status?: string; project?: string; supplier?: string; category?: string; page?: string; sort?: string; error?: string; saved?: string; invoice?: string; receipt?: string; add?: string; period?: string; view?: string; positive?: string };
 export function searchFields(input: Search): Search {
-  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","receipt","add","period","view"];
+  const supported: (keyof Search)[] = ["month","q","status","project","supplier","category","page","sort","error","saved","invoice","receipt","add","period","view","positive"];
   return Object.fromEntries(supported.filter(key => typeof input[key] === "string").map(key => [key, input[key]?.slice(0,240)]));
 }
 
@@ -55,7 +55,7 @@ export function summary({ data }: Access, month: string, project?: string, month
   const supplierNames = new Map(data.suppliers.map(row => [row.id, row.name]));
   let unallocated: number | null = null;
   let totalIncluded: number | null = null;
-  for (const charge of [...data.charges, ...monthlyManualCharges(data, prior.slice(0, 7), end.slice(0, 7))]) {
+  for (const charge of reportCharges(data, prior.slice(0, 7), end.slice(0, 7))) {
     if (charge.recorded_on < prior || charge.recorded_on >= end) continue;
     const allocations = chargeShares(charge);
     if (project && !allocations.some(row => row.projectId === project)) continue;
@@ -96,18 +96,17 @@ export function summary({ data }: Access, month: string, project?: string, month
   };
 }
 
-export function allCharges({ data }: Access, month: string, filters: Search, months = 1): Charge[] {
+export function allCharges({ data }: Access, month: string, filters: Search, months = 1, storedOnly = false): Charge[] {
   const next = monthOffset(month, months) + "-01";
   const term = lower(filters.q);
   const suppliers = new Map(data.suppliers.map(row => [row.id,row.name]));
   const projects = new Map(data.projects.map(row => [row.id,row.name]));
   const project = filters.project === unassigned ? "" : isId(filters.project) ? filters.project : undefined;
   const supplier = filters.supplier === unassigned ? null : isId(filters.supplier) ? filters.supplier : undefined;
-  const monthly = !filters.status || filters.status === includedStatus || filters.status === "manual"
-    ? monthlyManualCharges(data, month, next.slice(0, 7)) : [];
-  return [...data.charges, ...monthly].filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
+  const rows = storedOnly ? data.charges : reportCharges(data, month, next.slice(0, 7));
+  return rows.filter(row => row.recorded_on >= month + "-01" && row.recorded_on < next &&
       row.description.toLowerCase().includes(term) && (supplier === undefined || supplier === row.supplier_id) &&
-      (!filters.category || filters.category === row.category) &&
+      (!filters.category || filters.category === row.category) && (filters.positive !== "1" || (row.amount_ils_minor ?? 0) > 0) &&
       (!filters.status || (filters.status === actualStatus ? isActual(row.evidence)
         : filters.status === includedStatus ? isIncluded(row.evidence) : filters.status === row.evidence)))
     .filter(row => {
@@ -130,9 +129,9 @@ function shareAmount(row: StoredCharge, amount: number | null, project?: string)
   return amount === null ? null : splitAmount(amount, chargeShares(row)).get(project) ?? null;
 }
 
-export function listCharges(access: Access, month: string, filters: Search) {
+export function listCharges(access: Access, month: string, filters: Search, months = 1) {
   const first = (pageNumber(filters.page) - 1) * pageSize;
-  const rows = allCharges(access, month, filters);
+  const rows = allCharges(access, month, filters, months);
   return { rows: rows.slice(first, first + pageSize), count: rows.length };
 }
 

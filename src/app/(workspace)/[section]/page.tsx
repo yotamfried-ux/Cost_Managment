@@ -6,7 +6,7 @@ import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } f
 import { includedStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
 import { costBreakdown } from "@/lib/cost-breakdown";
 import { adapterProviders, providerCatalog } from "@/lib/connectors";
-import { mutate } from "@/app/finance-actions";
+import { mutate, syncVercel } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
@@ -29,14 +29,17 @@ export default async function Section({ params, searchParams }: { params: Promis
 }
 
 async function Expenses({ access, month, search, edit }: View) {
+  const annual = search.period === "annual";
+  const start = annual ? month.slice(0, 4) + "-01" : month;
+  const months = annual ? 12 : 1;
   const [totals, upcoming, directory, result] = await Promise.all([
-    summary(access, month), subscriptions(access, true), lookups(access), listCharges(access, month, search),
+    summary(access, start, undefined, months), subscriptions(access, true), lookups(access), listCharges(access, start, search, months),
   ]);
-  const editableRows = result.rows.filter(row => row.evidence !== "manual");
+  const editableRows = result.rows.filter(row => isId(row.id));
   const fxCandidates = editableRows.filter(row => row.currency !== "ILS" && row.amount_minor !== null);
   const detailed = search.view === "transactions";
   const scoped = isId(search.project) || search.project === unassigned;
-  const costs = detailed ? null : costBreakdown(allCharges(access, month, { ...search, status: search.status || includedStatus }));
+  const costs = detailed ? null : costBreakdown(allCharges(access, start, { ...search, status: search.status || includedStatus }, months));
   const group = scoped ? costs?.projects.get(search.project!) : costs?.all;
   return <>
     <PageTitle title="הוצאות" description="מעקב אחר הוצאות העסק לפי פרויקטים, קטגוריות וספקים." icon={Database}>
@@ -49,13 +52,13 @@ async function Expenses({ access, month, search, edit }: View) {
     </PageTitle>
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/expenses" kind={["expense", "fx", "allocation"].includes(search.add ?? "") ? search.add : undefined} month={month} candidates={search.add === "allocation" ? editableRows : fxCandidates}/>}
-    <ExpenseMetrics totals={totals} upcoming={upcoming}/>
+    {!annual && <ExpenseMetrics totals={totals} upcoming={upcoming}/>}
     <MonthlySubscriptions rows={subscriptions(access)} month={month}/>
     <Filters {...directory} path="/expenses" search={search}/>
-    {detailed ? <Panel title={`רשימת הוצאות (${result.count})`}>
+    {detailed ? <Panel id="expense-transactions" title={`רשימת הוצאות (${result.count})`} action={annual ? <span className="range-label">{start.slice(0, 4)}</span> : undefined}>
       <Charges rows={result.rows} projectShare={scoped}/><Pagination path="/expenses" search={search} total={result.count}/>
     </Panel> : <SupplierCosts title={search.project === unassigned ? "עלויות ללא שיוך לפי ספק" : "סיכום חודשי לפי ספק תשתית"} group={group} path="/expenses" search={search}/>}
-    <ExpenseCharts totals={totals} month={month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית"/>
+    <ExpenseCharts totals={totals} month={annual ? monthOffset(start, 11) : month} title="פילוח הוצאות לפי קטגוריה" trendTitle="מגמת הוצאות חודשית" annual={annual}/>
   </>;
 }
 
@@ -70,7 +73,7 @@ async function Projects({ access, month, search, edit }: View) {
     <ProjectMetrics projects={directory.projects} totals={totals}/>
     <ProjectCosts groups={costBreakdown(allCharges(access, month, { status: includedStatus })).projects} projects={directory.projects} month={month}/>
     <ProjectList projects={directory.projects} totals={totals} month={month}/>
-    <div className="split parallel"><Panel title="חלוקת עלויות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects}/></Panel>
+    <div className="split parallel"><Panel title="חלוקת עלויות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects} month={month}/></Panel>
       <Panel title="פרויקטים פעילים"><ProjectList projects={directory.projects.filter(row => row.status === "active")} totals={totals} month={month} compact/></Panel>
     </div>
   </>;
@@ -82,10 +85,12 @@ async function Invoices({ access, month, search, edit }: View) {
   const receipt = staged.find(item => item.id === search.receipt);
   const current = result.history.filter(row => row.issued_on.startsWith(month));
   const matched = current.filter(row => row.status === "matched").length;
-  const bySupplier = new Map<string, number>();
+  const bySupplier = new Map<string, { name: string; total: number; href: string }>();
   for (const row of current) {
-    const name = row.suppliers?.name ?? "ללא ספק";
-    bySupplier.set(name, (bySupplier.get(name) ?? 0) + 1);
+    const supplier = row.supplier_id;
+    const item = bySupplier.get(supplier) ?? { name: row.suppliers?.name ?? "ללא ספק", total: 0, href: href("/invoices", { month, supplier }) + "#invoice-documents" };
+    item.total++;
+    bySupplier.set(supplier, item);
   }
   const history = Array.from({ length: 12 }, (_, index) => {
     const key = monthOffset(month, index - 11);
@@ -96,7 +101,7 @@ async function Invoices({ access, month, search, edit }: View) {
   const supportingDocuments = item ? (access.data.inboxReceipts ?? []).filter(receipt => receipt.supportingInvoiceId === item.id) : [];
   const hasPaymentReceipt = supportingDocuments.some(receipt => receipt.paymentData?.kind === "receipt");
   const candidates = item && edit && item.status !== "matched"
-    ? allCharges(access, item.issued_on.slice(0, 7), { supplier: item.supplier_id }) : [];
+    ? allCharges(access, item.issued_on.slice(0, 7), { supplier: item.supplier_id }, 1, true) : [];
   const matches = candidates.filter(row => row.evidence !== "manual" && row.amount_minor === item?.amount_minor && row.currency === item?.currency && !row.reconciliation_matches);
   return <>
     <PageTitle title="חשבוניות" description="ניהול חשבוניות, קבלות ומסמכי מקור של העסק." icon={FileText}>
@@ -112,7 +117,7 @@ async function Invoices({ access, month, search, edit }: View) {
       { label: "מסמכים מ־Gmail שממתינים לתיוק", value: staged.length, detail: "תיבת המסמכים בכל התקופות", icon: TriangleAlert, tone: "coral" },
     ]}/>
     <div className="split charts-row">
-      <Panel title="חשבוניות לפי מקור"><Distribution rows={[...bySupplier].map(([name,total]) => ({ name,total }))} units="number" label="סה״כ מסמכים"/></Panel>
+      <Panel title="חשבוניות לפי מקור"><Distribution rows={[...bySupplier.values()]} units="number" label="סה״כ מסמכים"/></Panel>
       <Panel title="מספר חשבוניות לפי סטטוס" action={<span className="range-label">12 חודשים</span>}>
         <Trend rows={history} firstLabel="מותאמות" secondLabel="ממתינות" units="number"/>
       </Panel>
@@ -127,7 +132,7 @@ async function Invoices({ access, month, search, edit }: View) {
     </Panel>}
     <Filters path="/invoices" search={search} suppliers={directory.suppliers} invoice/>
     <div className={item ? "with-drawer" : undefined}>
-      <Panel title={`מסמכי חשבוניות (${result.count})`}>
+      <Panel id="invoice-documents" title={`מסמכי חשבוניות (${result.count})`}>
         <InvoiceRows rows={result.rows} search={search}/><Pagination path="/invoices" search={search} total={result.count}/>
       </Panel>
       {item && <Panel title="פרטי חשבונית" action={<Link className="icon-button" href={href("/invoices", search, { invoice: undefined })} aria-label="סגירת פרטי חשבונית"><X size={17}/></Link>}>
@@ -168,7 +173,9 @@ async function Suppliers({ access, month, search, edit }: View) {
       { label: "חידושים קרובים", value: next.length, detail: "ב־14 הימים הקרובים", icon: CalendarDays, tone: "coral" },
       { label: "מנויים פעילים", value: all.filter(row => row.status === "active").length, detail: "לפי נתוני המנויים בסביבת העבודה", icon: CreditCard },
     ]}/>
-    <div className="split wide-first"><Panel title="פילוח הוצאות לפי ספק"><Distribution rows={totals.suppliers} label="הוצאות חיוביות בש״ח"/></Panel>
+    <div className="split wide-first"><Panel title="פילוח הוצאות לפי ספק"><Distribution rows={totals.suppliers.map(row => ({
+      ...row, href: href("/expenses", { month, supplier: directory.suppliers.find(s => s.name === row.name)?.id, status: includedStatus, view: "transactions", positive: "1" }) + "#expense-transactions",
+    }))} label="הוצאות חיוביות בש״ח"/></Panel>
       <Panel title="חידושים קרובים"><SubscriptionRows rows={next.slice(0,4)} upcoming/></Panel></div>
     <Panel title="רשימת ספקים" action={<form className="small-filter" action="/suppliers"><input type="hidden" name="month" value={month}/>
       <input name="q" type="search" aria-label="חיפוש ספק" placeholder="חיפוש ספק..." defaultValue={search.q}/><button className="button">חיפוש</button></form>}>
@@ -198,9 +205,9 @@ async function Reports({ access, month, search }: View) {
       { label: "נתוני ספק", value: formatAmount(costs?.total), detail: `${costs?.entries ?? 0} תנועות · ש״ח`, icon: Database, tone: "coral" },
       { label: "אומדנים בתקופה", value: formatAmount(outlook?.total), detail: `${outlook?.entries ?? 0} תנועות · ש״ח`, icon: Activity },
     ]}/>
-    <ExpenseCharts totals={totals} month={annual ? monthOffset(reportMonth,11) : month}
+    <ExpenseCharts totals={totals} month={annual ? monthOffset(reportMonth,11) : month} annual={annual}
       title={annual ? `התפלגות הוצאות לשנת ${reportMonth.slice(0,4)}` : "התפלגות הוצאות החודש"}/>
-    <div className="split parallel"><Panel title="הוצאות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects}/></Panel>
+    <div className="split parallel"><Panel title="הוצאות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects} month={month} annual={annual}/></Panel>
       <Panel title="ייצוא דוחות"><div className="report-links">
         <Export search={{ month }}/><a className="button" href={href("/api/export",{ month,period:"annual" })}><Download size={16} aria-hidden="true"/>סיכום שנתי CSV</a>
       </div><p>הייצוא כולל מטבע מקורי, סכום בש״ח אם קיים, ומעמד מקור לכל תנועה.</p></Panel></div>
@@ -237,6 +244,9 @@ async function Integrations({ access, month, search }: View) {
   return <>
     <PageTitle title="אינטגרציות" description="מקורות חיוב, הרשאות קריאה והיסטוריית סנכרון." icon={Plug}>
       <TextLink to={href("/invoices",{ month })}>העלאת מסמכי ספק</TextLink>
+      {owner && accounts.some(row => row.provider === "vercel") && <form action={syncVercel}>
+        <input type="hidden" name="month" value={month}/><button className="button">סנכרון Vercel</button>
+      </form>}
       {owner && <Add path="/integrations" month={month} kind="account">חשבון ספק חדש</Add>}
     </PageTitle>
     <Flash search={search}/>
