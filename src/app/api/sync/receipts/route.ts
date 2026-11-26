@@ -22,8 +22,8 @@ export async function GET(request: Request) {
     const { output: batch, counts, progress, hasMore } = await googleReceipts(config, old.inboxReceipts ?? [], old.gmailScan);
     phase = "document_read";
     const filed = new Set(old.invoices.map(item => item.id));
-    const backlog = (old.inboxReceipts ?? []).filter(item => item.paymentData === undefined && !filed.has(item.id) &&
-      !item.supportingInvoiceId && supportsPaymentDocument(item)).slice(0, 5);
+    const backlog = (old.inboxReceipts ?? []).filter(item => item.paymentData === undefined &&
+      (item.supportingInvoiceId || !filed.has(item.id)) && supportsPaymentDocument(item)).slice(0, 5);
     const candidates = await Promise.all([
       ...batch.map(async ({ item, bytes }) => ({ item, parsed: await readPaymentDocument(item, bytes) ?? null })),
       ...backlog.map(async item => {

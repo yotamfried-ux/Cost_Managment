@@ -1,4 +1,5 @@
 import { authConfig, totp } from "../src/lib/auth";
+import { businessDate, monthOffset } from "../src/lib/finance";
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
 
@@ -155,6 +156,24 @@ test("monthly subscriptions without a renewal date appear on the overview and ex
   const csv = await page.request.get("/api/export");
   expect(csv.status()).toBe(200);
   expect(await csv.text()).toContain('"מנוי בדיקה חודשי"');
+});
+
+test("monthly review separates documented costs, shared charges and invoices awaiting payment proof", async ({ page }) => {
+  test.skip(!process.env.D2R_TEST_PASSWORD || !process.env.D2R_SHARED_PASSWORD_HASH, "Requires shared access fixture");
+  await page.goto("/sign-in");
+  const form = page.getByRole("form", { name: "כניסה עם סיסמה משותפת" });
+  await form.getByLabel("סיסמה").fill(process.env.D2R_TEST_PASSWORD!);
+  await form.getByRole("button", { name: "כניסה" }).click();
+  await expect(page.getByRole("heading", { name: "איך מורכב הסכום החודשי" })).toBeVisible();
+  const composition = page.locator("section").filter({ has: page.getByRole("heading", { name: "איך מורכב הסכום החודשי", exact: true }) });
+  const shared = composition.getByRole("row").filter({ hasText: "משותף או ללא שיוך" });
+  await expect(shared.getByRole("link")).toHaveAttribute("href", /project=unassigned/);
+  await page.goto("/?month=" + monthOffset(businessDate().slice(0, 7), -1));
+  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "מה דורש טיפול", exact: true }) });
+  await expect(panel.getByText("חסרה אסמכתת תשלום מזוהה")).toBeVisible();
+  await expect(panel.getByRole("row").filter({ hasText: "Vercel" })).toContainText("יש מסמך תומך · נדרש אימות");
+  await panel.getByRole("link", { name: "Hetzner", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "פרטי חשבונית", exact: true })).toBeVisible();
 });
 
 test("shared password keeps a remembered browser signed in and grants viewer access", async ({ page, browser }) => {
