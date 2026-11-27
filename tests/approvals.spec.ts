@@ -52,16 +52,23 @@ test("owner approves a proposed post; only then does the publisher receive it, o
   const viewerPage = await (await browser.newContext({ baseURL: "http://localhost:3150" })).newPage();
   await login(viewerPage, "watcher@d2r.test");
   await viewerPage.goto("/approvals");
-  await expect(viewerPage.getByText(caption)).toBeVisible();
+  await expect(viewerPage.locator(".reel-caption", { hasText: caption }).first()).toBeVisible();
   await expect(viewerPage.getByRole("button", { name: /אישור/ })).toHaveCount(0);
   await viewerPage.context().close();
 
   await login(page, "approver@d2r.test");
   await page.goto("/approvals");
   await expect(page.getByRole("heading", { name: "אישורים", exact: true })).toBeVisible();
-  await expect(page.getByText(caption)).toBeVisible();
+  await expect(page.locator(".reel-caption", { hasText: caption }).first()).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   const card = page.getByRole("article", { name: "פוסט פתיח " + suffix });
+  // The owner sees the post as it will look: playable video, Instagram caption view and a Facebook view.
+  await expect(card.locator("video")).toHaveCount(2);
+  await expect(card.locator("video").first()).toHaveAttribute("src", /raw\.githubusercontent\.com\/.*e2e\.mp4$/);
+  await expect(card.getByText("הכיתוב קצר ונראה במלואו")).toBeVisible();
+  await expect(card.locator(".reel-overlay")).toContainText(caption);
+  const approvals = await page.request.get("/approvals");
+  expect(approvals.headers()["content-security-policy"]).toMatch(/media-src 'self' https:\/\/raw\.githubusercontent\.com/);
   await card.getByRole("button", { name: "אישור הפוסט" }).click();
   await expect(page.getByRole("status").filter({ hasText: "אושרו או נדחו 1 פוסטים" })).toBeVisible();
   await expect(card.getByText("מאושר", { exact: true })).toBeVisible();
@@ -76,6 +83,15 @@ test("owner approves a proposed post; only then does the publisher receive it, o
 
   await page.goto("/approvals");
   await expect(page.getByRole("row", { name: new RegExp("פתיח " + suffix) }).getByText("פורסם")).toBeVisible();
+  const digest = JSON.stringify({ batchId: randomUUID(), records: [{ type: "digest", key: "e2e-digest-" + suffix, agent: "marketing", title: "סיכום שבועי " + suffix,
+    summary: "פורסמו שלושה פוסטים. הסרטון עם הפתיח על תורים קיבל הכי הרבה צפיות (נתוני דמו).", decision: "לאשר עוד פוסט על תזכורות בוואטסאפ?",
+    items: [{ title: "הפתיח שעבד", detail: "צפיות פי שניים מהממוצע (נתוני דמו)", tag: "מומלץ", link: "https://example.test/insight" }], at: new Date().toISOString() }] });
+  expect((await request.post("/api/agent/ingest", { data: digest, headers: signed(digest, agent()) })).status()).toBe(200);
+  await page.goto("/outputs");
+  await expect(page.getByRole("heading", { name: "תוצרי סוכנים", exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: "סיכום שבועי " + suffix }).getByText("מה אני צריך ממך")).toBeVisible();
+  await expect(page.getByRole("link", { name: "פתיחה" }).first()).toHaveAttribute("href", "https://example.test/insight");
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "סוכנים", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "סוכן השיווק" }).first()).toBeVisible();

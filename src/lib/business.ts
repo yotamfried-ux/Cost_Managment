@@ -26,8 +26,8 @@ export const publicationLabels: Record<PublicationStatus, string> = {
   pending: "ממתין לאישור", approved: "מאושר", rejected: "נדחה", publishing: "בפרסום", published: "פורסם", failed: "נכשל", expired: "פג תוקף",
 };
 export const agentStatuses = ["proposed", "active", "paused"] as const;
-/** Media may only be pulled from GitHub hosts, so an agent can never point the publisher at an arbitrary server. */
-export const mediaHosts = ["raw.githubusercontent.com", "github.com", "media.githubusercontent.com"] as const;
+/** Media may only be pulled from these GitHub hosts (the same ones the page is allowed to play from), so an agent can never point the publisher at an arbitrary server. */
+export const mediaHosts = ["raw.githubusercontent.com", "media.githubusercontent.com"] as const;
 
 const text = (max: number) => z.string().trim().max(max);
 export const recordKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_.-]{0,79}$/);
@@ -58,15 +58,21 @@ export const runInput = z.object({ type: z.literal("run"), key, agent: text(40).
 export const agentInput = z.object({
   type: z.literal("agent"), key, name: text(80), job: text(200).default(""), cadence: text(80).default(""), status: z.enum(agentStatuses),
 }).strict();
+/** A plain-language summary of an agent's run for the business owner: what was found, what is recommended, what needs a decision. */
+export const digestInput = z.object({
+  type: z.literal("digest"), key, agent: text(40), title: text(120), summary: text(600), decision: text(300).default(""),
+  items: z.array(z.object({ title: text(120), detail: text(300).default(""), link: link.nullable().default(null), tag: text(30).default("") }).strict()).max(10).default([]),
+  at: z.iso.datetime(),
+}).strict();
 const mediaLink = link.refine(value => (mediaHosts as readonly string[]).includes(new URL(value).hostname), "media host not allowed");
 /** A post proposed by the agent. It carries no approval fields: only a signed-in owner can approve, and only the publisher can publish. */
 export const publicationInput = z.object({
-  type: z.literal("publication"), key, platforms: z.array(z.enum(["instagram", "facebook"])).min(1).max(2).refine(list => new Set(list).size === list.length),
+  type: z.literal("publication"), key, posterUrl: mediaLink.nullable().default(null), platforms: z.array(z.enum(["instagram", "facebook"])).min(1).max(2).refine(list => new Set(list).size === list.length),
   product: text(60).default(""), slot: text(20).default(""), publishAt: z.iso.datetime(),
   captionIg: text(2200).default(""), captionFb: text(2200).default(""), fileUrl: mediaLink, fileName: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/),
   format: text(40).default("reel"), hook: text(200).default(""), note: text(500).default(""),
 }).strict().refine(post => (!post.platforms.includes("instagram") || post.captionIg.length > 0) && (!post.platforms.includes("facebook") || post.captionFb.length > 0), "caption missing for a selected platform");
-export const recordInput = z.discriminatedUnion("type", [leadInput, customerInput, postInput, metricInput, runInput, agentInput, publicationInput]);
+export const recordInput = z.discriminatedUnion("type", [leadInput, customerInput, postInput, metricInput, runInput, agentInput, publicationInput, digestInput]);
 export const batchInput = z.object({ batchId: z.uuid(), records: z.array(recordInput).min(1).max(200) }).strict();
 export type Batch = z.infer<typeof batchInput>;
 
@@ -77,13 +83,14 @@ export type Post = WithId<Omit<z.infer<typeof postInput>, "type">>;
 export type Metric = WithId<Omit<z.infer<typeof metricInput>, "type">>;
 export type AgentRun = Omit<z.infer<typeof runInput>, "type"> & { id: string };
 export type Agent = WithId<Omit<z.infer<typeof agentInput>, "type">>;
+export type Digest = WithId<Omit<z.infer<typeof digestInput>, "type">>;
 export type Publication = WithId<Omit<z.infer<typeof publicationInput>, "type">> & {
   status: PublicationStatus; hash: string; approvedAt: string | null; approvedBy: string | null; claimedAt: string | null; finishedAt: string | null;
   igMediaId: string | null; fbPostId: string | null; result: string;
 };
-export type CrmData = { leads: Lead[]; customers: Customer[]; posts: Post[]; metrics: Metric[]; runs: AgentRun[]; batches: string[]; agents: Agent[]; publications: Publication[] };
+export type CrmData = { leads: Lead[]; customers: Customer[]; posts: Post[]; metrics: Metric[]; runs: AgentRun[]; batches: string[]; agents: Agent[]; publications: Publication[]; digests: Digest[] };
 
-export function emptyCrm(): CrmData { return { leads: [], customers: [], posts: [], metrics: [], runs: [], batches: [], agents: [], publications: [] }; }
+export function emptyCrm(): CrmData { return { leads: [], customers: [], posts: [], metrics: [], runs: [], batches: [], agents: [], publications: [], digests: [] }; }
 /** Snapshots written before agents and publications existed lack those arrays; fill them in place. */
 export function normalizeCrm(crm: Partial<CrmData> | undefined): CrmData {
   const base = emptyCrm();
@@ -93,11 +100,11 @@ export function normalizeCrm(crm: Partial<CrmData> | undefined): CrmData {
 }
 
 /** What the owner approves is exactly this content; the publisher re-checks it before claiming. */
-export function publicationHash(post: Pick<Publication, "key" | "platforms" | "slot" | "publishAt" | "captionIg" | "captionFb" | "fileUrl" | "fileName">) {
-  return createHash("sha256").update(JSON.stringify([post.key, [...post.platforms].sort(), post.slot, post.publishAt, post.captionIg, post.captionFb, post.fileUrl, post.fileName])).digest("hex");
+export function publicationHash(post: Pick<Publication, "key" | "posterUrl" | "platforms" | "slot" | "publishAt" | "captionIg" | "captionFb" | "fileUrl" | "fileName">) {
+  return createHash("sha256").update(JSON.stringify([post.key, post.posterUrl, [...post.platforms].sort(), post.slot, post.publishAt, post.captionIg, post.captionFb, post.fileUrl, post.fileName])).digest("hex");
 }
 
-const limits = { leads: 5000, customers: 2000, posts: 1500, metrics: 6000, runs: 100, batches: 200, agents: 20, publications: 300 } as const;
+const limits = { leads: 5000, customers: 2000, posts: 1500, metrics: 6000, runs: 100, batches: 200, agents: 20, publications: 300, digests: 100 } as const;
 const finishedStatuses: PublicationStatus[] = ["published", "rejected", "expired", "failed"];
 const retainMs = 30 * 86_400_000;
 
@@ -152,6 +159,7 @@ export function applyBatch(data: WorkspaceData, batch: Batch, now = new Date().t
     else if (type === "post") outcome = upsert<Post>(crm.posts, fields as never, now);
     else if (type === "metric") outcome = upsert<Metric>(crm.metrics, fields as never, now);
     else if (type === "agent") outcome = upsert<Agent>(crm.agents, fields as never, now);
+    else if (type === "digest") outcome = upsert<Digest>(crm.digests, fields as never, now);
     else {
       const run = fields as z.infer<typeof runInput>;
       const existing = crm.runs.find(row => row.key === run.key);
@@ -159,6 +167,7 @@ export function applyBatch(data: WorkspaceData, batch: Batch, now = new Date().t
     }
     if (outcome === "added") added++; else updated++;
   }
+  crm.digests = crm.digests.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 60);
   const cutoff = new Date(Date.parse(now) - retainMs).toISOString();
   crm.publications = crm.publications.filter(row => !(finishedStatuses.includes(row.status) && row.publishAt < cutoff));
   for (const name of ["leads", "customers", "posts", "metrics", "agents", "publications"] as const) {

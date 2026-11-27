@@ -133,3 +133,26 @@ test("agent roster records and run attribution are stored; finished posts older 
   ingest(old, [publication({ key: "later", publishAt: at(60 * 24 * 40) })], at(60 * 24 * 40 - 60));
   assert.equal(old.crm!.publications.some(row => row.key === "2026-12-01-a"), false);
 });
+
+test("the poster is part of what gets approved, and only GitHub media hosts are accepted", () => {
+  const data = ingest(emptyData(), [publication({ posterUrl: "https://raw.githubusercontent.com/yotamfried-ux/Director/media-assets/a.webp" })]);
+  const post = data.crm!.publications[0];
+  assert.equal(post.hash, publicationHash(post));
+  assert.notEqual(publicationHash({ ...post, posterUrl: null }), post.hash);
+  assert.throws(() => batchInput.parse({ batchId: randomUUID(), records: [publication({ posterUrl: "https://evil.example/a.webp" })] }));
+  assert.throws(() => batchInput.parse({ batchId: randomUUID(), records: [publication({ fileUrl: "https://github.com/yotamfried-ux/Director/raw/a.mp4" })] }));
+});
+
+test("agent digests are validated strictly, replaced by key, and kept to the latest 60", () => {
+  const digest = (key: string, at: string, extra: object = {}) => ({ type: "digest", key, agent: "marketing", title: "סיכום " + key, summary: "מה שנעשה", at, ...extra });
+  assert.throws(() => batchInput.parse({ batchId: randomUUID(), records: [digest("d", at(0), { surprise: 1 })] }));
+  assert.throws(() => batchInput.parse({ batchId: randomUUID(), records: [digest("d", at(0), { items: [{ title: "x", link: "http://insecure.example" }] })] }));
+  assert.throws(() => batchInput.parse({ batchId: randomUUID(), records: [digest("d", at(0), { items: Array.from({ length: 11 }, () => ({ title: "x" })) })] }));
+  const data = ingest(emptyData(), [digest("d1", at(0), { decision: "לאשר פוסט?", items: [{ title: "פריט", detail: "פרט", link: "https://example.test/x", tag: "מומלץ" }] })]);
+  ingest(data, [digest("d1", at(5), { summary: "עודכן" })]);
+  assert.equal(data.crm!.digests.length, 1);
+  assert.equal(data.crm!.digests[0].summary, "עודכן");
+  for (let batch = 0; batch < 2; batch++) ingest(data, Array.from({ length: 40 }, (_, index) => digest(`m${batch}-${index}`, at(10 + batch * 40 + index))));
+  assert.equal(data.crm!.digests.length, 60);
+  assert.equal(data.crm!.digests.some(row => row.key === "d1"), false);
+});

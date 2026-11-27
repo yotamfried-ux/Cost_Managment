@@ -12,14 +12,14 @@ import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel } from "@/components/forms";
 import { CustomersView, LeadsView, MarketingView } from "@/components/business-views";
-import { AgentsView, ApprovalsView } from "@/components/publishing-views";
+import { AgentsView, ApprovalsView, OutputsView } from "@/components/publishing-views";
 
 type View = { access: Access; search: Search; month: string; edit: boolean };
 
 const pages: Record<string, (view: View) => Promise<React.ReactNode>> = {
   expenses: Expenses, projects: Projects, invoices: Invoices, suppliers: Suppliers,
   reports: Reports, integrations: Integrations, settings: Settings,
-  leads: Leads, customers: Customers, marketing: Marketing, approvals: Approvals, agents: Agents,
+  leads: Leads, customers: Customers, marketing: Marketing, approvals: Approvals, agents: Agents, outputs: Outputs,
 };
 
 export default async function Section({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<Search> }) {
@@ -39,6 +39,9 @@ async function Approvals({ access, month, search }: View) {
 }
 async function Agents({ access }: View) {
   return <><PageTitle title="סוכנים" description="מה כל סוכן עושה, מתי רץ לאחרונה ומה דיווח." icon={Bot}/><AgentsView data={access.data}/></>;
+}
+async function Outputs({ access }: View) {
+  return <><PageTitle title="תוצרי סוכנים" description="סיכום קצר מכל סוכן: מה מצא, מה מומלץ, ומה דורש החלטה שלכם." icon={FileText}/><OutputsView data={access.data}/></>;
 }
 async function Customers({ access }: View) {
   return <><PageTitle title="לקוחות" description="לקוחות פעילים לפי מוצר." icon={UsersRound}/><CustomersView data={access.data}/></>;
