@@ -8,6 +8,7 @@ import type { Allocation } from "./allocation";
 import type { Evidence } from "./finance";
 import type { FutureFinance } from "./plugins";
 import type { PaymentDocument } from "./payment-documents";
+import type { CrmData } from "./business";
 
 export type Role = "owner" | "editor" | "viewer";
 export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null; vercelProjectIds?: string[] };
@@ -49,6 +50,7 @@ export type WorkspaceData = {
   costEvents: { account: string; key: string; digest: string; observedAt: string; payload: unknown }[];
   lastTotp: Record<string, number>;
   futureFinance?: FutureFinance;
+  crm?: CrmData;
   inboxReceipts?: InboxReceipt[];
   gmailScan?: GmailScan;
   gmailRuns?: GmailRun[];

@@ -41,6 +41,18 @@ Gmail import runs three times daily for the approved label. Recognized USD invoi
 
 The Gmail job scans labelled documents from the past year and resumes mail pagination after each bounded batch. The cursor advances atomically with the saved attachments. Extracted payment facts are cached in the private ledger so a receipt can be matched when its invoice arrives on a later run. The integrations screen shows the latest 30 intake runs, partial failures, and the number of documents awaiting review.
 
+## Business data ingest (leads, customers, marketing)
+
+The Director agent sends leads, customers, posts, daily metrics and run summaries to `POST /api/agent/ingest`. They are stored in the same encrypted ledger and shown on the Leads, Customers and Marketing screens. The endpoint is disabled (503) until `D2R_AGENT_SECRET` (32+ characters) is set.
+
+Request: JSON body `{ "batchId": "<uuid>", "records": [ ... 1 to 200 records ... ] }` with headers `x-d2r-timestamp` (milliseconds since epoch, accepted within 5 minutes) and `x-d2r-signature` (hex HMAC-SHA256 of `<timestamp>.<raw body>` with the secret). Record types are `lead`, `customer`, `post`, `metric` and `run`; each carries a stable `key`, and a record with an existing key is updated. A batch with a known `batchId` is ignored, so retries are safe. Unknown fields, non-https post links and malformed dates are rejected with 400; bodies over 150 KB return 413.
+
+Rules: the agent holds only the signing secret, never the data key, and the endpoint can write only these record types, never finance records. A lead that opted out stays opted out even if a later batch says otherwise. Each accepted batch adds one audit entry (batch id and counts only, no personal data). Rotate the secret by changing `D2R_AGENT_SECRET` and the caller together.
+
+Capacity: business data shares the ledger snapshot. Limits are 5000 leads, 2000 customers, 1500 posts, 6000 metrics and 100 run summaries, and about 450 KB of business JSON; a batch that would exceed them fails with 413 instead of risking the snapshot. Trim old metrics or move this data to its own snapshot before approaching the limits.
+
+Before real customer data is sent, make the repository private: the ledger is encrypted, but commit metadata and ciphertext of customer data should not be public.
+
 ## Release and open scope
 
 Set `D2R_SHARED_PASSWORD_HASH` to a salted password hash to enable password-only access. It defaults to viewer access. Set `D2R_SHARED_LOGIN_ROLE=owner` only for a dedicated single-user deployment where possession of the password should grant full ownership permissions. With owner password sign-in active, the single-field form automatically remembers the browser for 30 days through an HttpOnly session cookie, and personal TOTP sign-in and personal sessions are disabled. Changing the role or password hash invalidates existing password-only sessions. Set `D2R_DISABLE_SHARED_LOGIN=true` and redeploy to suspend password-only access, invalidate its sessions, and restore configured personal TOTP sign-in. With the ledger configuration absent, password-only sign-in can access an empty workspace that is explicitly marked read-only.
