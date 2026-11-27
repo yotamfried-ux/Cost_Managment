@@ -37,6 +37,15 @@ h1, h2, strong { font-weight: 740; }
 .brand-chart i:nth-child(2) { background: #188475; height: 19px; }
 .brand-chart i:nth-child(3) { background: #115866; height: 27px; }
 .sidebar nav { display: grid; gap: 5px; }
+.nav-group { display: grid; gap: 3px; }
+.nav-heading { margin: 12px 15px 3px; color: #6b7280; font-size: 12px; font-weight: 700; }
+.nav-badge { margin-inline-start: auto; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #c8553d; color: #fff; font-size: 12px; text-align: center; }
+.attention { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.attention li a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; background: #f6f4f1; }
+.attention li a:hover { background: #eff3ef; }
+.attention .dot { width: 9px; height: 9px; border-radius: 50%; background: #2d9b85; flex: none; }
+.attention .dot.coral { background: #c8553d; }
+.next-step { color: #4b5563; font-size: 14px; }
 .nav-link { display: flex; align-items: center; gap: 15px; min-height: 43px; padding: 7px 15px; border-radius: 9px; }
 .nav-link:hover { background: #eff3ef; }
 .nav-link[aria-current="page"] { background: #d9ede9; color: #104d50; font-weight: 750; }
@@ -194,8 +203,12 @@ input:not([type=hidden]), select { min-height: 35px; }
   .sidebar { justify-content: stretch; overflow: visible; width: auto; inset: auto 0 0; padding: 5px 8px max(5px, env(safe-area-inset-bottom)); border: 1px solid var(--line); }
   .sidebar-logo, .annual { display: none; }
   .sidebar nav { grid-template-columns: repeat(5,minmax(0,1fr)); }
+  .nav-group { display: contents; }
+  .nav-heading { display: none; }
   .sidebar nav .nav-link { flex-direction: column; gap: 2px; padding: 5px 1px; font-size: 11px; }
-  .sidebar nav .nav-link:nth-child(n+6) { display: none; }
+  .sidebar nav .nav-link:not([data-primary]) { display: none; }
+  .nav-badge { position: absolute; top: 2px; inset-inline-start: 8px; margin: 0; min-width: 18px; padding: 0 5px; font-size: 11px; }
+  .sidebar nav .nav-link { position: relative; }
   .mobile-menu { display: block; margin-inline-start: auto; order: -1; }
   .topbar { flex-wrap: wrap; gap: 8px; }
   .top-search { order: -2; flex: 1; }
