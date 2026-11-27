@@ -8,14 +8,18 @@ import { Brand } from "./brand";
 import { signOut } from "@/app/auth-actions";
 import { monthTitle, resolveMonth } from "@/lib/finance";
 
-const links = [
-  ["/","סקירה",House], ["/projects","פרויקטים",Layers3], ["/expenses","הוצאות",CreditCard],
-  ["/invoices","חשבוניות",FileText], ["/suppliers","ספקים",UsersRound],
-  ["/leads","לידים",Target], ["/customers","לקוחות",UserRoundCheck], ["/marketing","שיווק",Megaphone], ["/approvals","אישורים",ClipboardCheck], ["/agents","סוכנים",Bot], ["/outputs","תוצרי סוכנים",Lightbulb], ["/reports","דוחות",ChartNoAxesColumnIncreasing],
-  ["/integrations","אינטגרציות",Plug], ["/settings","הגדרות",Settings],
-] as const;
+type NavLink = readonly [string, string, typeof House];
+const groups: { title: string; links: NavLink[] }[] = [
+  { title: "", links: [["/", "סקירה", House]] },
+  { title: "כסף", links: [["/projects","פרויקטים",Layers3], ["/expenses","הוצאות",CreditCard], ["/invoices","חשבוניות",FileText], ["/suppliers","ספקים",UsersRound], ["/reports","דוחות",ChartNoAxesColumnIncreasing]] },
+  { title: "מכירות ושיווק", links: [["/leads","לידים",Target], ["/customers","לקוחות",UserRoundCheck], ["/marketing","שיווק",Megaphone]] },
+  { title: "סוכנים", links: [["/approvals","אישורים",ClipboardCheck], ["/outputs","תוצרי סוכנים",Lightbulb], ["/agents","סוכנים",Bot]] },
+  { title: "מערכת", links: [["/integrations","אינטגרציות",Plug], ["/settings","הגדרות",Settings]] },
+];
+const links = groups.flatMap(group => group.links);
+const primary = new Set(["/", "/projects", "/expenses", "/approvals", "/outputs"]);
 
-export function Shell({ initials, notifications, children }: { initials: string; notifications: number; children: React.ReactNode }) {
+export function Shell({ initials, notifications, badges = {}, children }: { initials: string; notifications: number; badges?: Record<string, number>; children: React.ReactNode }) {
   const path = usePathname();
   const params = useSearchParams();
   const month = resolveMonth(params.get("month") ?? undefined);
@@ -23,10 +27,14 @@ export function Shell({ initials, notifications, children }: { initials: string;
     <a href="#main-content" className="skip-link">דילוג לתוכן</a>
     <aside className="sidebar">
       <Link className="sidebar-logo" href={`/?month=${month}`} aria-label="D2R Management, סקירה"><Brand /></Link>
-      <nav aria-label="ניווט ראשי">{links.map(([url,label,Icon]) =>
-        <Link key={url} href={`${url}?month=${month}`} className={`nav-link ${url === "/integrations" ? "nav-divider" : ""}`} aria-current={(url === "/" ? path === "/" : path.startsWith(url)) ? "page" : undefined}>
-          <Icon size={19} aria-hidden="true" /><span>{label}</span>
-        </Link>)}</nav>
+      <nav aria-label="ניווט ראשי">{groups.map(group => <div className="nav-group" key={group.title || "main"}>
+        {group.title && <p className="nav-heading">{group.title}</p>}
+        {group.links.map(([url,label,Icon]) => {
+          const badge = badges[url] ?? 0;
+          return <Link key={url} href={`${url}?month=${month}`} className="nav-link" data-primary={primary.has(url) ? "" : undefined} aria-current={(url === "/" ? path === "/" : path.startsWith(url)) ? "page" : undefined}>
+            <Icon size={19} aria-hidden="true" /><span>{label}</span>{badge > 0 && <b className="nav-badge" aria-label={`${badge} ממתינים`}>{badge}</b>}
+          </Link>;
+        })}</div>)}</nav>
       <section className="annual">
         <span className="annual-icon"><ChartNoAxesColumnIncreasing size={18} aria-hidden="true"/></span>
         <strong>סקירה שנתית {month.slice(0, 4)}</strong>
@@ -37,7 +45,7 @@ export function Shell({ initials, notifications, children }: { initials: string;
     <div className="workspace">
       <header className="topbar">
         <details className="mobile-menu disclosure"><summary className="button icon-button" aria-label="תפריט"><Menu size={20}/></summary>
-          <nav className="popover" aria-label="תפריט משני">{links.map(([url,label,Icon]) => <Link className="nav-link" key={url} href={`${url}?month=${month}`}><Icon size={17} aria-hidden="true"/>{label}</Link>)}</nav>
+          <nav className="popover" aria-label="תפריט משני">{links.map(([url,label,Icon]) => <Link className="nav-link" key={url} href={`${url}?month=${month}`}><Icon size={17} aria-hidden="true"/>{label}{(badges[url] ?? 0) > 0 && <b className="nav-badge">{badges[url]}</b>}</Link>)}</nav>
         </details>
         <form action="/expenses" className="top-search">
           <input type="hidden" name="month" value={month} />

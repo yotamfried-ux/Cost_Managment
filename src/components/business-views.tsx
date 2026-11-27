@@ -36,7 +36,7 @@ export function LeadsView({ data, month }: { data: { crm?: CrmData }; month: str
         <td><Chip tone={tone(row.status)}>{leadStatusLabels[row.status]}</Chip></td><td>{consentLabels[row.consent]}</td>
         <td>{row.nextAction ? <>{row.nextAction}{row.nextActionDue && <> · {displayDate(row.nextActionDue)}</>}</> : "—"}</td>
         <td>{row.valueMinor === null ? "—" : <bdi>{new Intl.NumberFormat("he-IL", { style: "currency", currency: row.currency, maximumFractionDigits: 0 }).format(row.valueMinor / 100)}</bdi>}</td>
-      </tr>)}</DataTable> : <Blank>עוד לא נקלטו לידים. הסוכן שולח אותם דרך נקודת הקליטה המאובטחת.</Blank>}
+      </tr>)}</DataTable> : <Blank>עוד אין לידים. הם ייקלטו כאן כשסוכן המכירות יופעל. עד אז אין מה לעשות במסך הזה.</Blank>}
     </Panel>
   </>;
 }
@@ -64,7 +64,7 @@ export function CustomersView({ data }: { data: { crm?: CrmData } }) {
         <td>{row.name}</td><td><bdi>{row.contact || "—"}</bdi></td><td>{row.products.join(", ") || "—"}</td>
         <td><Chip tone={row.status === "active" ? "good" : row.status === "churned" ? "bad" : "neutral"}>{labels[row.status]}</Chip></td>
         <td>{row.since ? displayDate(row.since) : "—"}</td>
-      </tr>)}</DataTable> : <Blank>עוד לא נקלטו לקוחות.</Blank>}
+      </tr>)}</DataTable> : <Blank>עוד אין לקוחות. ליד שנסגר הופך ללקוח כאן, ואז אפשר לעקוב אחרי המוצר שלו וההכנסה ממנו.</Blank>}
     </Panel>
   </>;
 }
@@ -102,10 +102,10 @@ export function MarketingView({ data, month }: { data: { crm?: CrmData }; month:
         <td>{post.publishedOn ? displayDate(post.publishedOn) : "—"}</td><td>{platformLabels[post.platform]}</td><td>{post.product || "—"}</td><td>{post.format || "—"}</td>
         <td>{post.url ? <a className="text-link" href={post.url} rel="noopener noreferrer" target="_blank">{post.hook || "פתיחת הפוסט"}</a> : post.hook || "—"}</td>
         <td>{number(stats.views)}</td><td>{number(stats.saves)}</td><td>{number(stats.shares)}</td><td>{number(stats.clicks)}</td>
-      </tr>)}</DataTable> : <Blank>אין פוסטים שפורסמו בחודש הזה. נתונים נקלטים מהרשתות דרך הסוכן, ולא נוצרים אוטומטית.</Blank>}
+      </tr>)}</DataTable> : <Blank>עוד לא פורסם פוסט החודש. פוסט שאישרת במסך האישורים ופורסם יופיע כאן עם הצפיות וההקשות שלו, בלי מספרים מומצאים.</Blank>}
     </Panel>
     <Panel title="פעילות הסוכן">
-      {lastRun ? <p>{lastRun.routine}: {lastRun.summary} <span className="range-label">{displayDate(lastRun.at)}</span></p> : <Blank>הסוכן עוד לא דיווח.</Blank>}
+      {lastRun ? <p>{lastRun.routine}: {lastRun.summary} <span className="range-label">{displayDate(lastRun.at)}</span></p> : <Blank>סוכן השיווק עוד לא רץ. הריצה הראשונה שלו מתוזמנת לשעה 16:23.</Blank>}
     </Panel>
   </>;
 }

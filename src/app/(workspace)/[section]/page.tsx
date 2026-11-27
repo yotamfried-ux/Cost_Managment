@@ -342,7 +342,7 @@ async function Settings({ access, search, month }: View) {
       <Panel title="חיבורים וסנכרון"><TextLink to={href("/integrations",{month})}>ניהול אינטגרציות</TextLink><p>ריצות סנכרון ומצב הרשאות זמינים במסך האינטגרציות.</p></Panel>
     </div>
     <div id="notifications"><Panel title="התראות">
-      {alerts.length ? <DataTable headings={["התראה","תאריך"]}>{alerts.map(item => <tr key={item.id}><td>{item.code === "charge_threshold" ? "הוצאה עברה את הסף שהוגדר" : "מקור ספק שינה חיוב שכבר אומת"}</td><td>{displayDate(item.created_at)}</td></tr>)}</DataTable> : <Blank>אין התראות בסביבת העבודה.</Blank>}
+      {alerts.length ? <DataTable headings={["התראה","תאריך"]}>{alerts.map(item => <tr key={item.id}><td>{item.code === "charge_threshold" ? "הוצאה עברה את הסף שהוגדר" : "מקור ספק שינה חיוב שכבר אומת"}</td><td>{displayDate(item.created_at)}</td></tr>)}</DataTable> : <Blank>אין התראות כספיות. פוסטים וסוכנים שמחכים לך מסומנים בתפריט, בשורות אישורים ותוצרי סוכנים.</Blank>}
     </Panel></div>
     <Panel title="יומן ביקורת">
       {audit.length ? <DataTable headings={["תאריך","רשומה","פעולה"]}>{audit.map(item => <tr key={item.id}>

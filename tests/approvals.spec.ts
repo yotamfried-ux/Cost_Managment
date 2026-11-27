@@ -92,9 +92,14 @@ test("owner approves a proposed post; only then does the publisher receive it, o
   await expect(page.getByRole("article", { name: "סיכום שבועי " + suffix }).getByText("מה אני צריך ממך")).toBeVisible();
   await expect(page.getByRole("link", { name: "פתיחה" }).first()).toHaveAttribute("href", "https://example.test/insight");
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "מה דורש אותך עכשיו" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /סוכנים שואלים אותך שאלה/ })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "ניווט ראשי" }).getByText("סוכנים", { exact: true }).first()).toBeVisible();
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "סוכנים", exact: true })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "סוכן השיווק" }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "שיווק", exact: true }).first()).toBeVisible();
   await expect(page.getByText("הוכנו פוסטים לבדיקה " + suffix).first()).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });

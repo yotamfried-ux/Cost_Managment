@@ -1,6 +1,7 @@
 import { Bot, CalendarClock, CircleCheck, ClipboardCheck, ExternalLink, FileText, TriangleAlert } from "lucide-react";
 import { reviewPosts } from "@/app/approval-actions";
 import { normalizeCrm, publicationLabels, type CrmData, type Publication } from "@/lib/business";
+import { agentLabel, cadenceLabel } from "@/lib/owner-attention";
 import { currentTime, israelDay, lateMs, stuckMs } from "@/lib/publishing";
 import type { Role } from "@/lib/repository";
 import { Blank, Chip, DataTable, displayDate, Metrics, Panel } from "./dashboard";
@@ -123,26 +124,29 @@ export function AgentsView({ data }: { data: { crm?: CrmData } }) {
   const crm = crmOf(data);
   const last = new Map<string, (typeof crm.runs)[number]>();
   for (const run of [...crm.runs].sort((a, b) => a.at.localeCompare(b.at))) last.set(run.agent ?? "", run);
-  const statusLabels = { proposed: "מוצע", active: "פעיל", paused: "מושהה" } as const;
+  const statusLabels = { proposed: "ממתין להפעלה", active: "פעיל", paused: "מושהה" } as const;
   const waiting = crm.publications.filter(row => row.status === "pending").length;
   const active = crm.agents.filter(row => row.status === "active").length;
   const recent = [...crm.runs].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
-  const names = new Map(crm.agents.map(row => [row.key, row.name]));
+  const names = new Map(crm.agents.map(row => [row.key, agentLabel(row.key, row.name, row.job).name]));
+  const idle = crm.agents.filter(row => row.status === "proposed").length;
   return <>
     <Metrics metrics={[
-      { label: "סוכנים פעילים", value: active, detail: `מתוך ${crm.agents.length} שהוגדרו`, icon: Bot },
+      { label: "סוכנים פעילים", value: active, detail: idle ? `${idle} ממתינים להפעלה שלך` : `מתוך ${crm.agents.length} שהוגדרו`, icon: Bot },
       { label: "ריצות שדווחו", value: crm.runs.length, detail: "100 האחרונות", icon: CircleCheck },
       { label: "פוסטים לאישור", value: waiting, detail: "בעמוד האישורים", icon: ClipboardCheck, tone: waiting ? "coral" : undefined },
     ]}/>
     <Panel title="הסוכנים">
       {crm.agents.length ? <DataTable headings={["סוכן", "תפקיד", "תדירות", "סטטוס", "ריצה אחרונה", "מה נעשה"]}>{crm.agents.map(agent => {
         const run = last.get(agent.key);
+        const label = agentLabel(agent.key, agent.name, agent.job);
         return <tr key={agent.id}>
-          <td>{agent.name}</td><td>{agent.job || "—"}</td><td>{agent.cadence || "—"}</td>
+          <td>{label.name}</td><td>{label.job || "—"}</td><td>{cadenceLabel(agent.cadence)}</td>
           <td><Chip tone={agent.status === "active" ? "good" : agent.status === "paused" ? "bad" : "pending"}>{statusLabels[agent.status]}</Chip></td>
-          <td>{run ? stamp(run.at) : "לא דיווח"}</td><td>{run?.summary ?? "—"}</td>
+          <td>{run ? stamp(run.at) : agent.status === "active" ? "עוד לא רץ" : "לא הופעל"}</td><td>{run?.summary ?? "—"}</td>
         </tr>;
       })}</DataTable> : <Blank>הסוכנים עוד לא שלחו את רשימתם. הם מדווחים כאן בסוף כל ריצה.</Blank>}
+      <p className="next-step">פעיל: רץ לבד לפי התזמון שלו. ממתין להפעלה: הוגדר אבל עדיין לא נקבע לו תזמון, וזה קורה רק באישור שלך. עוד לא רץ: הסוכן פעיל וההרצה הראשונה שלו טרם התקיימה.</p>
     </Panel>
     <Panel title="פעילות אחרונה">
       {recent.length ? <DataTable headings={["מועד", "סוכן", "ריצה", "סיכום"]}>{recent.map(run => <tr key={run.id}>
