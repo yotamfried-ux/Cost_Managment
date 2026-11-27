@@ -228,3 +228,15 @@ input:not([type=hidden]), select { min-height: 35px; }
 
 .field-stack .remember-device { display: flex; align-items: center; gap: 8px; }
 .remember-device input[type="checkbox"] { min-height: auto; width: 16px; height: 16px; accent-color: var(--teal); }
+
+/* Approvals queue */
+.pub-day { display: grid; gap: 14px; padding: 4px 14px 16px; }
+.pub-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fffdfb; }
+.pub-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.pub-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.pub-hook { margin: 0; font-weight: 650; }
+.pub-card h3 { margin: 4px 0 0; font-size: 12px; color: var(--muted); font-weight: 650; }
+.caption-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 10px; background: #f6f2ed; line-height: 1.6; }
+.pub-file { margin: 0; color: var(--muted); }
+.pub-file .text-link { display: inline-flex; align-items: center; gap: 4px; }
+.pub-actions { display: flex; flex-wrap: wrap; gap: 8px; }

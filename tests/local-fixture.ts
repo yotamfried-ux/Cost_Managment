@@ -13,10 +13,14 @@ const dataKey = randomBytes(32);
 const sessionKey = randomBytes(32).toString("base64url");
 const password = randomBytes(20).toString("base64url");
 const agentSecret = randomBytes(24).toString("hex");
+const publisherSecret = randomBytes(24).toString("hex");
 const roles = ["owner", "editor", "viewer"] as const;
 const accounts = await Promise.all(roles.map(async role => ({
   email: role + "@d2r.test", role, passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)),
 })));
+// Dedicated owner and viewer for the approvals test, so their sign-ins never reuse a TOTP code another spec just spent.
+accounts.push({ email: "approver@d2r.test", role: "owner", passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)) });
+accounts.push({ email: "watcher@d2r.test", role: "viewer", passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)) });
 await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(data => {
   data.business.name = "סביבת בדיקה מבודדת";
   data.projects.push({ id: randomUUID(), name: "פרויקט בדיקה", description: "פרויקט מקומי לבדיקות", status: "active", monthly_budget_minor: 900000 });
@@ -48,11 +52,11 @@ await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(da
   return { result: true, documents: [{ id, bytes }, { id: invoiceId, bytes: invoiceBytes }] };
 });
 if (process.env.GITHUB_ACTIONS) {
-  for (const secret of [password, dataKey.toString("base64url"), sessionKey, agentSecret, ...accounts.map(row => row.totpSecret)]) console.log("::add-mask::" + secret);
+  for (const secret of [password, dataKey.toString("base64url"), sessionKey, agentSecret, publisherSecret, ...accounts.map(row => row.totpSecret)]) console.log("::add-mask::" + secret);
 }
 const values = {
   D2R_LOCAL_DATA_DIR: root, D2R_DATA_KEY: dataKey.toString("base64url"), D2R_SESSION_SECRET: sessionKey,
   D2R_AUTH_ACCOUNTS: JSON.stringify(accounts), D2R_TEST_PASSWORD: password,
-  D2R_AGENT_SECRET: agentSecret, D2R_SHARED_PASSWORD_HASH: await passwordHash(password),
+  D2R_AGENT_SECRET: agentSecret, D2R_PUBLISHER_SECRET: publisherSecret, D2R_SHARED_PASSWORD_HASH: await passwordHash(password),
 };
 await appendFile(process.env.GITHUB_ENV, Object.entries(values).map(([key,value]) => `${key}=${value}\n`).join(""), { mode: 0o600 });
