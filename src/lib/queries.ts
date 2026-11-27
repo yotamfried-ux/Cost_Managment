@@ -161,3 +161,13 @@ export function subscriptions({ data }: Access, onlyUpcoming = false): Subscript
     .sort((a,b) => (a.next_charge_on ?? "~").localeCompare(b.next_charge_on ?? "~"))
     .map(row => ({ ...row, suppliers: { name: suppliers.get(row.supplier_id) ?? "" } }));
 }
+
+/** Suppliers with charges (last 12 months) that still have no split and no rule, with how many; this is what a rule would fix. */
+export function openBySupplier({ data }: Access, month: string) {
+  const open = new Map<string, { count: number }>();
+  for (const charge of reportCharges(data, monthOffset(month, -11), monthOffset(month, 1))) {
+    if (!charge.supplier_id || charge.allocations || charge.project_id) continue;
+    open.set(charge.supplier_id, { count: (open.get(charge.supplier_id)?.count ?? 0) + 1 });
+  }
+  return open;
+}

@@ -1,8 +1,13 @@
 import { roundParts } from "./allocation";
 import { monthlyManualCharges } from "./monthly-charges";
+import { applyRules } from "./allocation-rules";
 import type { Charge, WorkspaceData } from "./repository";
 
 export function reportCharges(data: WorkspaceData, month: string, end: string): Charge[] {
+  return applyRules(buildCharges(data, month, end), data.allocationRules, data.projects);
+}
+
+function buildCharges(data: WorkspaceData, month: string, end: string): Charge[] {
   const subscriptions = monthlyManualCharges(data, month, end);
   const manualVercel = new Set(subscriptions.filter(row => row.description.toLowerCase() === "vercel pro")
     .map(row => `${row.supplier_id}:${row.recorded_on.slice(0, 7)}`));

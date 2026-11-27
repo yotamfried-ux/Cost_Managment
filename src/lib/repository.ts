@@ -11,7 +11,9 @@ import type { PaymentDocument } from "./payment-documents";
 import type { CrmData } from "./business";
 
 export type Role = "owner" | "editor" | "viewer";
-export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null; vercelProjectIds?: string[] };
+export type Project = { id: string; name: string; description: string; status: string; monthly_budget_minor: number | null; vercelProjectIds?: string[]; kind?: "overhead" };
+/** Every charge from this supplier that has no explicit split is attributed to this project (or to the general-costs project). */
+export type AllocationRule = { id: string; supplier_id: string; project_id: string };
 export type Supplier = { id: string; name: string; category: string };
 export type Charge = {
   id: string; description: string; recorded_on: string; amount_minor: number | null; currency: string; evidence: Evidence;
@@ -49,6 +51,7 @@ export type WorkspaceData = {
   accounts: Account[]; runs: Run[]; alerts: Alert[]; audit: Audit[];
   costEvents: { account: string; key: string; digest: string; observedAt: string; payload: unknown }[];
   lastTotp: Record<string, number>;
+  allocationRules?: AllocationRule[];
   futureFinance?: FutureFinance;
   crm?: CrmData;
   inboxReceipts?: InboxReceipt[];

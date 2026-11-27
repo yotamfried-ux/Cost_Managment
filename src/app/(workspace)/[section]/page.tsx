@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X, ClipboardCheck, Bot } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
-import { includedStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
+import { includedStatus, allCharges, invoices, isId, listCharges, lookups, openBySupplier, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
 import { costBreakdown } from "@/lib/cost-breakdown";
 import { adapterProviders, providerCatalog } from "@/lib/connectors";
 import { mutate, syncVercel } from "@/app/finance-actions";
 import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, formatAmount, href, InvoiceRows, Metrics, PageTitle, Pagination, Panel, SubscriptionRows, TextLink } from "@/components/dashboard";
 import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
-import { FormFields, FormPanel } from "@/components/forms";
+import { FormFields, FormPanel, RulesPanel } from "@/components/forms";
 import { CustomersView, LeadsView, MarketingView } from "@/components/business-views";
 import { AgentsView, ApprovalsView, OutputsView } from "@/components/publishing-views";
 
@@ -92,11 +92,12 @@ async function Projects({ access, month, search, edit }: View) {
     </PageTitle>
     <Flash search={search}/>
     {edit && <FormPanel {...directory} path="/projects" kind={search.add === "project" ? "project" : undefined} month={month}/>}
+    {edit && <RulesPanel month={month} suppliers={directory.suppliers} projects={directory.projects} rules={access.data.allocationRules ?? []} open={openBySupplier(access, month)}/>}
     <ProjectMetrics projects={directory.projects} totals={totals}/>
     <ProjectCosts groups={costBreakdown(allCharges(access, month, { status: includedStatus })).projects} projects={directory.projects} month={month}/>
     <ProjectList projects={directory.projects} totals={totals} month={month}/>
     <div className="split parallel"><Panel title="חלוקת עלויות לפי פרויקט"><ProjectDistribution totals={totals} projects={directory.projects} month={month}/></Panel>
-      <Panel title="פרויקטים פעילים"><ProjectList projects={directory.projects.filter(row => row.status === "active")} totals={totals} month={month} compact/></Panel>
+      <Panel title="פרויקטים פעילים"><ProjectList projects={directory.projects.filter(row => row.status === "active" && row.kind !== "overhead")} totals={totals} month={month} compact/></Panel>
     </div>
   </>;
 }
