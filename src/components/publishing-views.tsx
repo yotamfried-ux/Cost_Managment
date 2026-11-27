@@ -35,6 +35,9 @@ function ReviewForm({ keys, decision, month, children, primary = false }: { keys
 const cutAt = 125;
 const owner = "החשבון שלך";
 
+/** Image posts must render as images; a video element cannot play a PNG/JPEG. */
+export const isImage = (fileName: string) => /\.(png|jpe?g|webp)$/i.test(fileName);
+
 function Preview({ post, network }: { post: Publication; network: "instagram" | "facebook" }) {
   const caption = network === "instagram" ? post.captionIg : post.captionFb;
   const cut = network === "instagram" && caption.length > cutAt;
@@ -43,7 +46,10 @@ function Preview({ post, network }: { post: Publication; network: "instagram" | 
     <figcaption>{label}</figcaption>
     <div className="phone">
       <div className="phone-screen">
-        <video src={post.fileUrl} poster={post.posterUrl ?? undefined} controls muted playsInline loop preload="metadata" aria-label={`סרטון הפוסט: ${post.hook || post.fileName}`}/>
+        {isImage(post.fileName)
+          ? // eslint-disable-next-line @next/next/no-img-element
+            <img className="phone-image" src={post.fileUrl} alt={`תמונת הפוסט: ${post.hook || post.fileName}`}/>
+          : <video src={post.fileUrl} poster={post.posterUrl ?? undefined} controls muted playsInline loop preload="metadata" aria-label={`סרטון הפוסט: ${post.hook || post.fileName}`}/>}
         {network === "instagram" && <div className="reel-overlay" dir="auto">
           <strong>{owner}</strong>
           <span className="reel-caption">{cut ? caption.slice(0, cutAt).trimEnd() : caption}{cut && <span className="reel-more"> … עוד</span>}</span>

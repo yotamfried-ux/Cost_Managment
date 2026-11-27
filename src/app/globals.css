@@ -261,6 +261,7 @@ input:not([type=hidden]), select { min-height: 35px; }
 .phone { width: 100%; padding: 8px; border-radius: 30px; background: #172438; box-shadow: var(--shadow); }
 .phone-screen { position: relative; aspect-ratio: 9 / 16; overflow: hidden; border-radius: 22px; background: #0e1722; }
 .phone-screen video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.phone-screen .phone-image { width: 100%; height: 100%; object-fit: contain; display: block; background: #0e1722; }
 .reel-overlay { position: absolute; inset-inline: 0; bottom: 44px; padding: 38px 14px 10px; display: grid; gap: 4px; color: white; font-size: 13px; line-height: 1.4; background: linear-gradient(transparent, #000000b3); pointer-events: none; }
 .reel-caption { overflow-wrap: anywhere; white-space: pre-wrap; }
 .reel-more { opacity: .75; }
