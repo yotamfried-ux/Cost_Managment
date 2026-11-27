@@ -77,7 +77,7 @@ export function ProjectMetrics({ projects, totals }: { projects: Project[]; tota
   const tracked = totals.projects.filter(row => budgetedIds.has(row.project_id));
   const used = tracked.length ? tracked.reduce((sum, row) => sum + row.total, 0) : null;
   return <Metrics metrics={[
-    { label: "פרויקטים פעילים", value: projects.filter(row => row.status === "active").length, detail: `מתוך ${projects.length} פרויקטים`, icon: Folder },
+    { label: "פרויקטים פעילים", value: projects.filter(row => row.status === "active" && row.kind !== "overhead").length, detail: `מתוך ${projects.filter(row => row.kind !== "overhead").length} פרויקטים`, icon: Folder },
     { label: "עלות פרויקטים חודשית", value: formatAmount(cost), detail: "מאומת ונתוני ספק · סכומים בש״ח", icon: Database, tone: "coral" },
     { label: "ניצול תקציב", value: totalBudget && used !== null ? `${Math.round(used / totalBudget * 100)}%` : "—", detail: `${budget.length} פרויקטים עם תקציב`, icon: Target },
     { label: "עלויות ללא שיוך", value: formatAmount(totals.unallocated), detail: "מאומת ונתוני ספק · סכומים בש״ח", icon: FileText },

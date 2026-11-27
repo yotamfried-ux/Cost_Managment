@@ -17,7 +17,7 @@ export function ownerAttention({ crm, unallocatedMinor, upcomingCharges, nowMs }
     { id: "approve", count: waiting, href: "/approvals", tone: "coral" },
     { id: "fix", count: broken, href: "/approvals", tone: "coral" },
     { id: "decide", count: decisions, href: "/outputs", tone: "coral" },
-    { id: "assign", count: (unallocatedMinor ?? 0) > 0 ? 1 : 0, href: "/expenses?project=unassigned", tone: "mint" },
+    { id: "assign", count: (unallocatedMinor ?? 0) > 0 ? 1 : 0, href: "/projects", tone: "mint" },
     { id: "charges", count: upcomingCharges, href: "/suppliers", tone: "mint" },
   ];
   return items.filter(item => item.count > 0);

@@ -102,6 +102,15 @@ test("owner approves a proposed post; only then does the publisher receive it, o
   await expect(page.getByRole("cell", { name: "שיווק", exact: true }).first()).toBeVisible();
   await expect(page.getByText("הוכנו פוסטים לבדיקה " + suffix).first()).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+  await page.goto("/projects");
+  await expect(page.getByRole("heading", { name: "כללי שיוך אוטומטיים" })).toBeVisible();
+  const row = page.getByRole("row", { name: /ספק בדיקה/ });
+  await row.getByLabel("שיוך עבור ספק בדיקה").selectOption("overhead");
+  await row.getByRole("button", { name: "שמור" }).click();
+  await expect(page).toHaveURL(/saved=1/);
+  await expect(page.getByRole("link", { name: /הוצאות כלליות/ }).first()).toBeVisible();
+  await expect(page.getByRole("row", { name: /ספק בדיקה/ }).getByLabel("שיוך עבור ספק בדיקה")).toHaveValue("overhead");
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/approvals");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);

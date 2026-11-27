@@ -94,3 +94,28 @@ function MoneyFields({ required = false }: { required?: boolean }) {
     <label>מטבע<select name="currency" defaultValue="ILS" dir="ltr">{currencies.map(currency => <option key={currency}>{currency}</option>)}</select></label>
   </>;
 }
+
+/** Supplier rules: shared tools go to general costs, or a supplier is tied to one project. Saved rules cover future charges too. */
+export function RulesPanel({ month, suppliers, projects, rules, open }: {
+  month: string; suppliers: Supplier[]; projects: Project[];
+  rules: { supplier_id: string; project_id: string }[]; open: Map<string, { count: number }>;
+}) {
+  const ruled = new Map(rules.map(rule => [rule.supplier_id, rule.project_id]));
+  const overhead = projects.find(row => row.kind === "overhead");
+  const rows = suppliers.filter(row => ruled.has(row.id) || open.has(row.id)).sort((a, b) => (open.get(b.id)?.count ?? 0) - (open.get(a.id)?.count ?? 0));
+  return <section id="rules" className="panel content-panel"><div className="panel-heading"><h2>כללי שיוך אוטומטיים</h2></div>
+    <p className="next-step">קבע פעם אחת לאיזה פרויקט שייך כל ספק, או סמן אותו כהוצאה כללית של העסק. החלטה כזו חלה גם על חיובים עתידיים. חיוב ששייכת ידנית תמיד גובר על הכלל.</p>
+    {rows.length ? <div className="data-table"><table><thead><tr><th>ספק</th><th>חיובים ללא שיוך (12 חודשים)</th><th>שיוך</th></tr></thead><tbody>{rows.map(row => {
+      const saved = ruled.get(row.id);
+      const value = saved ? (saved === overhead?.id ? "overhead" : saved) : row.category === "כלי AI" ? "overhead" : "";
+      return <tr key={row.id}><td>{row.name}</td><td>{open.get(row.id)?.count ?? 0}</td><td>
+        <form action={mutate.bind(null, "rule")} className="inline-actions">
+          <FormFields path="/projects" month={month}/><input type="hidden" name="supplier" value={row.id}/>
+          <label><span className="visually-hidden">שיוך עבור {row.name}</span><select name="target" defaultValue={value}>
+            <option value="">ללא כלל</option><option value="overhead">הוצאה כללית של העסק</option>
+            {projects.filter(item => item.kind !== "overhead").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select></label><button className="button" type="submit">שמור</button>
+        </form></td></tr>;
+    })}</tbody></table></div> : <p>אין ספקים עם חיובים לא משויכים.</p>}
+  </section>;
+}

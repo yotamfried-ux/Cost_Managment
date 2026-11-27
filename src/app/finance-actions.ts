@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, currencies, minorUnits, resolveMonth } from "@/lib/finance";
+import { overheadName, overheadProject } from "@/lib/allocation-rules";
 import { applyExchangeRate, audit, flagCharge, matchInvoice } from "@/lib/ledger";
 import { providerCatalog } from "@/lib/connectors";
 import { cleanFilename, pdfMaxSize, validPdf } from "@/lib/documents";
@@ -21,7 +22,7 @@ const vercelProjectIds = z.array(z.string().regex(/^prj_[A-Za-z0-9]{10,60}$/)).m
 const allowed = new Map([
   ["expense", ["/", "/expenses"]], ["project", ["/projects"]], ["supplier", ["/suppliers"]],
   ["subscription", ["/suppliers"]], ["invoice", ["/invoices"]], ["match", ["/invoices"]],
-  ["fx", ["/expenses"]], ["allocation", ["/expenses"]], ["settings", ["/settings"]], ["account", ["/integrations"]],
+  ["fx", ["/expenses"]], ["rule", ["/projects"]], ["allocation", ["/expenses"]], ["settings", ["/settings"]], ["account", ["/integrations"]],
 ]);
 
 export async function mutate(kind: string, form: FormData) {
@@ -181,6 +182,26 @@ export async function mutate(kind: string, form: FormData) {
           const account = { id: randomUUID(), provider: item.provider, supplier_id: item.supplier, external_account_id: item.external, last_synced_at: null };
           data.accounts.push(account);
           audit(data, actor, "provider_accounts", "INSERT", account);
+          break;
+        }
+        case "rule": {
+          const item = z.object({ supplier: z.uuid(), target: z.union([z.uuid(), z.literal("overhead"), z.literal("")]) }).parse(fields);
+          requireSupplier(item.supplier);
+          const rules = data.allocationRules ??= [];
+          const index = rules.findIndex(rule => rule.supplier_id === item.supplier);
+          if (!item.target) {
+            if (index < 0) return { result: null, changed: false };
+            audit(data, actor, "allocation_rules", "UPDATE", { supplier: item.supplier, removed: true });
+            rules.splice(index, 1);
+            break;
+          }
+          const project = item.target === "overhead"
+            ? overheadProject(data.projects, () => ({ id: randomUUID(), name: overheadName, description: "עלויות משותפות שאינן שייכות לפרויקט אחד", status: "active", monthly_budget_minor: null, kind: "overhead" as const }))
+            : data.projects.find(row => row.id === item.target);
+          if (!project) throw new Error("Unknown project");
+          if (index >= 0) rules[index].project_id = project.id;
+          else rules.push({ id: randomUUID(), supplier_id: item.supplier, project_id: project.id });
+          audit(data, actor, "allocation_rules", index >= 0 ? "UPDATE" : "INSERT", { supplier: item.supplier, project: project.id });
           break;
         }
         default: throw new Error("Unrecognized update");
