@@ -1,13 +1,13 @@
 import { Activity, CircleCheck, Eye, Megaphone, MousePointerClick, TriangleAlert, UsersRound, UserRoundCheck } from "lucide-react";
 import { businessDate, monthOffset, monthTitle } from "@/lib/finance";
-import { consentLabels, emptyCrm, leadStatusLabels, leadStatuses, platformLabels, platforms, type CrmData, type Lead } from "@/lib/business";
+import { consentLabels, normalizeCrm, leadStatusLabels, leadStatuses, platformLabels, platforms, type CrmData, type Lead } from "@/lib/business";
 import { Blank, Chip, DataTable, displayDate, Metrics, Panel } from "./dashboard";
 import { Distribution, Trend } from "./charts";
 
 const number = (value: number) => new Intl.NumberFormat("he-IL").format(value);
 const sum = (rows: (number | undefined)[]) => rows.reduce<number>((total, value) => total + (value ?? 0), 0);
 const closed = new Set<Lead["status"]>(["won", "lost", "opted_out"]);
-const crmOf = (data: { crm?: CrmData }) => data.crm ?? emptyCrm();
+const crmOf = (data: { crm?: CrmData }) => normalizeCrm(data.crm ? { ...data.crm } : undefined);
 const tone = (status: Lead["status"]) => status === "won" ? "good" : status === "lost" || status === "opted_out" ? "bad" : status === "new" ? "pending" : "neutral";
 
 export function LeadsView({ data, month }: { data: { crm?: CrmData }; month: string }) {

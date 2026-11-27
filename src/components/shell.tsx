@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { House, Layers3, CreditCard, FileText, UsersRound, ChartNoAxesColumnIncreasing, Settings, Plug, ArrowLeft, Bell, CalendarDays, Search, ChevronDown, Menu, Target, UserRoundCheck, Megaphone } from "lucide-react";
+import { House, Layers3, CreditCard, FileText, UsersRound, ChartNoAxesColumnIncreasing, Settings, Plug, ArrowLeft, Bell, CalendarDays, Search, ChevronDown, Menu, Target, UserRoundCheck, Megaphone, ClipboardCheck, Bot, Lightbulb } from "lucide-react";
 import { Brand } from "./brand";
 import { signOut } from "@/app/auth-actions";
 import { monthTitle, resolveMonth } from "@/lib/finance";
@@ -11,7 +11,7 @@ import { monthTitle, resolveMonth } from "@/lib/finance";
 const links = [
   ["/","סקירה",House], ["/projects","פרויקטים",Layers3], ["/expenses","הוצאות",CreditCard],
   ["/invoices","חשבוניות",FileText], ["/suppliers","ספקים",UsersRound],
-  ["/leads","לידים",Target], ["/customers","לקוחות",UserRoundCheck], ["/marketing","שיווק",Megaphone], ["/reports","דוחות",ChartNoAxesColumnIncreasing],
+  ["/leads","לידים",Target], ["/customers","לקוחות",UserRoundCheck], ["/marketing","שיווק",Megaphone], ["/approvals","אישורים",ClipboardCheck], ["/agents","סוכנים",Bot], ["/outputs","תוצרי סוכנים",Lightbulb], ["/reports","דוחות",ChartNoAxesColumnIncreasing],
   ["/integrations","אינטגרציות",Plug], ["/settings","הגדרות",Settings],
 ] as const;
 

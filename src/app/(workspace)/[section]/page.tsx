@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X } from "lucide-react";
+import { Activity, Building2, CalendarDays, ChartNoAxesColumnIncreasing, CircleCheck, CreditCard, Database, Download, FileText, Layers3, Plug, Settings as SettingsIcon, ShieldCheck, TriangleAlert, UsersRound, X, ClipboardCheck, Bot } from "lucide-react";
 import { requireWorkspace } from "@/lib/session";
 import { businessDate, evidenceLabels, monthOffset, monthTitle, resolveMonth } from "@/lib/finance";
 import { includedStatus, allCharges, invoices, isId, listCharges, lookups, subscriptions, summary, type Access, type Search, searchFields, unassigned } from "@/lib/queries";
@@ -12,13 +12,14 @@ import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel } from "@/components/forms";
 import { CustomersView, LeadsView, MarketingView } from "@/components/business-views";
+import { AgentsView, ApprovalsView, OutputsView } from "@/components/publishing-views";
 
 type View = { access: Access; search: Search; month: string; edit: boolean };
 
 const pages: Record<string, (view: View) => Promise<React.ReactNode>> = {
   expenses: Expenses, projects: Projects, invoices: Invoices, suppliers: Suppliers,
   reports: Reports, integrations: Integrations, settings: Settings,
-  leads: Leads, customers: Customers, marketing: Marketing,
+  leads: Leads, customers: Customers, marketing: Marketing, approvals: Approvals, agents: Agents, outputs: Outputs,
 };
 
 export default async function Section({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<Search> }) {
@@ -32,6 +33,15 @@ export default async function Section({ params, searchParams }: { params: Promis
 
 async function Leads({ access, month }: View) {
   return <><PageTitle title="לידים" description="פניות ולקוחות פוטנציאליים שהסוכן קלט, עם הסכמה ומעקב." icon={UsersRound}/><LeadsView data={access.data} month={month}/></>;
+}
+async function Approvals({ access, month, search }: View) {
+  return <><PageTitle title="אישורים" description="הפוסטים של הימים הקרובים: טקסט, קובץ ושעה. מה שאתם מאשרים כאן הוא מה שיפורסם." icon={ClipboardCheck}/><ApprovalsView data={access.data} role={access.role} month={month} search={search}/></>;
+}
+async function Agents({ access }: View) {
+  return <><PageTitle title="סוכנים" description="מה כל סוכן עושה, מתי רץ לאחרונה ומה דיווח." icon={Bot}/><AgentsView data={access.data}/></>;
+}
+async function Outputs({ access }: View) {
+  return <><PageTitle title="תוצרי סוכנים" description="סיכום קצר מכל סוכן: מה מצא, מה מומלץ, ומה דורש החלטה שלכם." icon={FileText}/><OutputsView data={access.data}/></>;
 }
 async function Customers({ access }: View) {
   return <><PageTitle title="לקוחות" description="לקוחות פעילים לפי מוצר." icon={UsersRound}/><CustomersView data={access.data}/></>;
