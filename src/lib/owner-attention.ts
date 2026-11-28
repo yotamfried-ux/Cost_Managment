@@ -1,7 +1,10 @@
 import type { CrmData } from "./business";
 import { lateMs, stuckMs } from "./publishing";
 
-export type Attention = { id: "approve" | "fix" | "decide" | "assign" | "charges"; count: number; href: string; tone: "coral" | "mint" };
+export type AttentionId = "approve" | "fix" | "decide" | "assign" | "charges";
+/** Ids the owner may mark as seen. Posts to approve or fix clear only when someone acts on them. */
+export const dismissible: AttentionId[] = ["decide", "assign", "charges"];
+export type Attention = { id: AttentionId; count: number; href: string; tone: "coral" | "mint"; fingerprint: string };
 export type AttentionInput = { crm: CrmData; unallocatedMinor: number | null; upcomingCharges: number; nowMs: number };
 
 /** What needs the owner today, most urgent first. Only things a person must act on; nothing is invented. */
@@ -12,15 +15,19 @@ export function ownerAttention({ crm, unallocatedMinor, upcomingCharges, nowMs }
     || (row.status === "approved" && nowMs - Date.parse(row.publishAt) > lateMs)).length;
   const latest = new Map<string, CrmData["digests"][number]>();
   for (const row of [...crm.digests].sort((a, b) => a.at.localeCompare(b.at))) latest.set(row.agent, row);
-  const decisions = [...latest.values()].filter(row => row.decision).length;
+  const deciding = [...latest.values()].filter(row => row.decision);
+  const decisions = deciding.length;
+  const unallocated = (unallocatedMinor ?? 0) > 0 ? 1 : 0;
+  const acks = crm.acks ?? {};
   const items: Attention[] = [
-    { id: "approve", count: waiting, href: "/approvals", tone: "coral" },
-    { id: "fix", count: broken, href: "/approvals", tone: "coral" },
-    { id: "decide", count: decisions, href: "/outputs", tone: "coral" },
-    { id: "assign", count: (unallocatedMinor ?? 0) > 0 ? 1 : 0, href: "/projects", tone: "mint" },
-    { id: "charges", count: upcomingCharges, href: "/suppliers", tone: "mint" },
+    { id: "approve", count: waiting, href: "/approvals", tone: "coral", fingerprint: "" },
+    { id: "fix", count: broken, href: "/approvals", tone: "coral", fingerprint: "" },
+    // A new summary or a changed amount changes the fingerprint, so a dismissed item comes back when something new needs the owner.
+    { id: "decide", count: decisions, href: "/outputs", tone: "coral", fingerprint: deciding.map(row => `${row.agent}@${row.at}`).sort().join("|") },
+    { id: "assign", count: unallocated, href: "/projects", tone: "mint", fingerprint: String(unallocatedMinor ?? 0) },
+    { id: "charges", count: upcomingCharges, href: "/suppliers", tone: "mint", fingerprint: String(upcomingCharges) },
   ];
-  return items.filter(item => item.count > 0);
+  return items.filter(item => item.count > 0 && !(dismissible.includes(item.id) && acks[item.id] === item.fingerprint));
 }
 
 export const attentionText = (item: Attention, unallocated: string) => ({

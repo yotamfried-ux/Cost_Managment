@@ -1,7 +1,8 @@
 import { Bot, CalendarClock, CircleCheck, ClipboardCheck, ExternalLink, FileText, TriangleAlert } from "lucide-react";
 import { reviewPosts } from "@/app/approval-actions";
 import { normalizeCrm, publicationLabels, type CrmData, type Publication } from "@/lib/business";
-import { agentLabel, cadenceLabel } from "@/lib/owner-attention";
+import { agentLabel, cadenceLabel, ownerAttention } from "@/lib/owner-attention";
+import { AckButton } from "./ack-button";
 import { currentTime, israelDay, lateMs, stuckMs } from "@/lib/publishing";
 import type { Role } from "@/lib/repository";
 import { PendingButton } from "./pending-button";
@@ -163,19 +164,20 @@ export function AgentsView({ data }: { data: { crm?: CrmData } }) {
   </>;
 }
 
-export function OutputsView({ data }: { data: { crm?: CrmData } }) {
+export function OutputsView({ data, role, month }: { data: { crm?: CrmData }; role: Role; month: string }) {
   const crm = crmOf(data);
   const names = new Map(crm.agents.map(row => [row.key, row.name]));
   const ordered = [...crm.digests].sort((a, b) => b.at.localeCompare(a.at));
   const deciding = ordered.filter(row => row.decision).slice(0, 5);
   const byAgent = [...new Set(ordered.map(row => row.agent))];
+  const openDecision = ownerAttention({ crm, unallocatedMinor: null, upcomingCharges: 0, nowMs: currentTime() }).find(item => item.id === "decide");
   return <>
     <Metrics metrics={[
       { label: "סיכומים", value: ordered.length, detail: "60 האחרונים", icon: FileText },
       { label: "דורשים החלטה", value: ordered.filter(row => row.decision).length, detail: "הסוכן שואל אתכם משהו", icon: TriangleAlert, tone: ordered.some(row => row.decision) ? "coral" : undefined },
       { label: "סוכנים עם תוצרים", value: byAgent.length, detail: "מתוך כל הסוכנים", icon: Bot },
     ]}/>
-    {deciding.length > 0 && <Panel title="מה אני צריך ממך">
+    {deciding.length > 0 && <Panel title="מה אני צריך ממך" action={role === "owner" && openDecision ? <AckButton id="decide" fingerprint={openDecision.fingerprint} month={month} back="outputs">טופל, אפשר להסיר את ההתראה</AckButton> : undefined}>
       <ul className="decision-list">{deciding.map(row => <li key={row.id}><strong>{names.get(row.agent) ?? row.agent}</strong> · {row.title}<br/>{row.decision}</li>)}</ul>
     </Panel>}
     {byAgent.length ? byAgent.map(agent => <Panel key={agent} title={names.get(agent) ?? (agent || "ללא סוכן")}>

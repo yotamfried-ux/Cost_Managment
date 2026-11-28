@@ -11,6 +11,7 @@ import { Add, Blank, Charges, Chip, DataTable, displayDate, Export, Flash, forma
 import { Distribution, Trend } from "@/components/charts";
 import { ExpenseCharts, ExpenseMetrics, Filters, MoneyInCurrency, MonthlySubscriptions, ProjectCosts, ProjectDistribution, ProjectList, ProjectMetrics, SupplierCosts } from "@/components/views";
 import { FormFields, FormPanel, RulesPanel } from "@/components/forms";
+import { AckButton } from "@/components/ack-button";
 import { CustomersView, LeadsView, MarketingView } from "@/components/business-views";
 import { AgentsView, ApprovalsView, OutputsView } from "@/components/publishing-views";
 
@@ -40,8 +41,8 @@ async function Approvals({ access, month, search }: View) {
 async function Agents({ access }: View) {
   return <><PageTitle title="סוכנים" description="מה כל סוכן עושה, מתי רץ לאחרונה ומה דיווח." icon={Bot}/><AgentsView data={access.data}/></>;
 }
-async function Outputs({ access }: View) {
-  return <><PageTitle title="תוצרי סוכנים" description="סיכום קצר מכל סוכן: מה מצא, מה מומלץ, ומה דורש החלטה שלכם." icon={FileText}/><OutputsView data={access.data}/></>;
+async function Outputs({ access, month }: View) {
+  return <><PageTitle title="תוצרי סוכנים" description="סיכום קצר מכל סוכן: מה מצא, מה מומלץ, ומה דורש החלטה שלכם." icon={FileText}/><OutputsView data={access.data} role={access.role} month={month}/></>;
 }
 async function Customers({ access }: View) {
   return <><PageTitle title="לקוחות" description="לקוחות פעילים לפי מוצר." icon={UsersRound}/><CustomersView data={access.data}/></>;
@@ -342,7 +343,7 @@ async function Settings({ access, search, month }: View) {
       </Panel>
       <Panel title="חיבורים וסנכרון"><TextLink to={href("/integrations",{month})}>ניהול אינטגרציות</TextLink><p>ריצות סנכרון ומצב הרשאות זמינים במסך האינטגרציות.</p></Panel>
     </div>
-    <div id="notifications"><Panel title="התראות">
+    <div id="notifications"><Panel title="התראות" action={access.role === "owner" && alerts.length > 0 && access.data.crm?.acks?.alerts !== alerts[0].id ? <AckButton id="alerts" fingerprint={alerts[0].id} month={month} back="settings">סימנתי הכול כנקרא</AckButton> : undefined}>
       {alerts.length ? <DataTable headings={["התראה","תאריך"]}>{alerts.map(item => <tr key={item.id}><td>{item.code === "charge_threshold" ? "הוצאה עברה את הסף שהוגדר" : "מקור ספק שינה חיוב שכבר אומת"}</td><td>{displayDate(item.created_at)}</td></tr>)}</DataTable> : <Blank>אין התראות כספיות. פוסטים וסוכנים שמחכים לך מסומנים בתפריט, בשורות אישורים ותוצרי סוכנים.</Blank>}
     </Panel></div>
     <Panel title="יומן ביקורת">

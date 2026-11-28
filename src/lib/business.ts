@@ -88,9 +88,9 @@ export type Publication = WithId<Omit<z.infer<typeof publicationInput>, "type">>
   status: PublicationStatus; hash: string; approvedAt: string | null; approvedBy: string | null; claimedAt: string | null; finishedAt: string | null;
   igMediaId: string | null; fbPostId: string | null; result: string;
 };
-export type CrmData = { leads: Lead[]; customers: Customer[]; posts: Post[]; metrics: Metric[]; runs: AgentRun[]; batches: string[]; agents: Agent[]; publications: Publication[]; digests: Digest[] };
+export type CrmData = { leads: Lead[]; customers: Customer[]; posts: Post[]; metrics: Metric[]; runs: AgentRun[]; batches: string[]; agents: Agent[]; publications: Publication[]; digests: Digest[]; acks: Record<string, string> };
 
-export function emptyCrm(): CrmData { return { leads: [], customers: [], posts: [], metrics: [], runs: [], batches: [], agents: [], publications: [], digests: [] }; }
+export function emptyCrm(): CrmData { return { leads: [], customers: [], posts: [], metrics: [], runs: [], batches: [], agents: [], publications: [], digests: [], acks: {} }; }
 /** Snapshots written before agents and publications existed lack those arrays; fill them in place. */
 export function normalizeCrm(crm: Partial<CrmData> | undefined): CrmData {
   const base = emptyCrm();
