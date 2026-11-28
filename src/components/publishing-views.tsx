@@ -4,6 +4,7 @@ import { normalizeCrm, publicationLabels, type CrmData, type Publication } from 
 import { agentLabel, cadenceLabel } from "@/lib/owner-attention";
 import { currentTime, israelDay, lateMs, stuckMs } from "@/lib/publishing";
 import type { Role } from "@/lib/repository";
+import { PendingButton } from "./pending-button";
 import { Blank, Chip, DataTable, displayDate, Metrics, Panel } from "./dashboard";
 
 const zone = "Asia/Jerusalem";
@@ -27,7 +28,7 @@ function ReviewForm({ keys, decision, month, children, primary = false }: { keys
   return <form action={reviewPosts}>
     <input type="hidden" name="month" value={month}/><input type="hidden" name="decision" value={decision}/>
     {keys.map(key => <input key={key} type="hidden" name="key" value={key}/>)}
-    <button className={`button${primary ? " primary" : ""}`}>{children}</button>
+    <PendingButton className={`button${primary ? " primary" : ""}`}>{children}</PendingButton>
   </form>;
 }
 
