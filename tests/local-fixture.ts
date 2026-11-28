@@ -20,6 +20,7 @@ const accounts = await Promise.all(roles.map(async role => ({
 })));
 // Dedicated owner and viewer for the approvals test, so their sign-ins never reuse a TOTP code another spec just spent.
 accounts.push({ email: "approver@d2r.test", role: "owner", passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)) });
+accounts.push({ email: "acker@d2r.test", role: "owner", passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)) });
 accounts.push({ email: "watcher@d2r.test", role: "viewer", passwordHash: await passwordHash(password), totpSecret: encodeBase32(randomBytes(20)) });
 await new LedgerRepository({ mode: "local", root, key: dataKey }).transaction(data => {
   data.business.name = "סביבת בדיקה מבודדת";

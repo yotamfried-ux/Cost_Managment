@@ -127,7 +127,7 @@ test("owner can mark an agent's question as handled; the badge clears and a newe
     expect((await request.post("/api/agent/ingest", { data: body, headers: signed(body, agent()) })).status()).toBe(200);
   };
   await send("שאלה ראשונה " + suffix, new Date(Date.now() - 60_000).toISOString());
-  await login(page, "approver@d2r.test");
+  await login(page, "acker@d2r.test");
   const badge = page.getByRole("link", { name: /תוצרי סוכנים/ }).locator(".nav-badge");
   await expect(badge).toHaveCount(1);
   await page.goto("/outputs");
