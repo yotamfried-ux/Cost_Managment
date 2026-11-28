@@ -115,3 +115,28 @@ test("owner approves a proposed post; only then does the publisher receive it, o
   await page.goto("/approvals");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
+
+test("owner can mark an agent's question as handled; the badge clears and a newer question brings it back", async ({ page, request }) => {
+  test.skip(!process.env.D2R_TEST_PASSWORD, "Requires isolated repository fixture");
+  const suffix = randomUUID().slice(0, 8);
+  const send = async (title: string, at: string) => {
+    const body = JSON.stringify({ batchId: randomUUID(), records: [
+      { type: "agent", key: "sales", name: "סוכן המכירות", job: "מטפל בלידים", cadence: "לפי אירוע", status: "active" },
+      { type: "digest", key: "e2e-digest-" + suffix, agent: "sales", title, summary: "סיכום בדיקה", decision: "לאשר הצעת מחיר? " + suffix, items: [], at },
+    ] });
+    expect((await request.post("/api/agent/ingest", { data: body, headers: signed(body, agent()) })).status()).toBe(200);
+  };
+  await send("שאלה ראשונה " + suffix, new Date(Date.now() - 60_000).toISOString());
+  await login(page, "acker@d2r.test");
+  const badge = page.getByRole("link", { name: /תוצרי סוכנים/ }).locator(".nav-badge");
+  await expect(badge).toHaveCount(1);
+  await page.goto("/outputs");
+  await page.getByRole("button", { name: /טופל, אפשר להסיר/ }).click();
+  await expect(page).toHaveURL(/saved=1/);
+  await expect(page.getByRole("link", { name: /תוצרי סוכנים/ }).locator(".nav-badge")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /טופל, אפשר להסיר/ })).toHaveCount(0);
+  // The agent asks something new: it needs the owner again.
+  await send("שאלה שנייה " + suffix, new Date().toISOString());
+  await page.goto("/outputs");
+  await expect(page.getByRole("link", { name: /תוצרי סוכנים/ }).locator(".nav-badge")).toHaveCount(1);
+});

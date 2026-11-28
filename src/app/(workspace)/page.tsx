@@ -8,7 +8,8 @@ import { ExpenseCharts, ExpenseMetrics, MonthlySubscriptions, ProjectList, Suppl
 import { FormPanel } from "@/components/forms";
 import Link from "next/link";
 import { normalizeCrm } from "@/lib/business";
-import { attentionText, ownerAttention } from "@/lib/owner-attention";
+import { attentionText, dismissible, ownerAttention } from "@/lib/owner-attention";
+import { AckButton } from "@/components/ack-button";
 import { currentTime } from "@/lib/publishing";
 
 export default async function Home({ searchParams }: { searchParams: Promise<Search> }) {
@@ -31,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
     <Flash search={search}/>
     {canEdit && <FormPanel path="/" kind={search.add === "expense" ? "expense" : undefined} month={month} projects={projects} suppliers={suppliers}/>}
     <Panel title="מה דורש אותך עכשיו">
-      {attention.length ? <ul className="attention">{attention.map(item => <li key={item.id}><Link href={`${item.href}${item.href.includes("?") ? "&" : "?"}month=${month}`}><span className={`dot ${item.tone}`} aria-hidden="true"/>{attentionText(item, formatAmount(totals.unallocated))}</Link></li>)}</ul>
+      {attention.length ? <ul className="attention">{attention.map(item => <li key={item.id} className="attention-row"><Link href={`${item.href}${item.href.includes("?") ? "&" : "?"}month=${month}`}><span className={`dot ${item.tone}`} aria-hidden="true"/>{attentionText(item, formatAmount(totals.unallocated))}</Link>{access.role === "owner" && dismissible.includes(item.id) && <AckButton id={item.id} fingerprint={item.fingerprint} month={month}/>}</li>)}</ul>
         : <Blank>אין כרגע משהו שמחכה לך. כשסוכן יכין פוסט לאישור או ישאל שאלה, זה יופיע כאן.</Blank>}
     </Panel>
     <ExpenseMetrics totals={totals} upcoming={upcoming}/>
