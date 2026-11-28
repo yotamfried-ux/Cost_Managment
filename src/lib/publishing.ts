@@ -22,18 +22,22 @@ const platformPost = { instagram: "instagram", facebook: "facebook" } as const;
 /** Calendar day in Israel, used to group the three posts of one day. */
 export const israelDay = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date(iso));
 
-export function reviewPublications(data: WorkspaceData, keys: string[], decision: "approve" | "reject", actor: string, now = new Date().toISOString()) {
+export function reviewPublications(data: WorkspaceData, keys: string[], decision: "approve" | "reject" | "cancel", actor: string, now = new Date().toISOString()) {
   const crm = data.crm = normalizeCrm(data.crm);
   let done = 0, skipped = 0;
   for (const key of new Set(keys)) {
     const post = crm.publications.find(row => row.key === key);
     // Only a pending post whose content still matches its hash and whose time has not passed can be approved.
     const approvable = post && post.status === "pending" && post.hash === publicationHash(post) && post.publishAt > now;
-    if (decision === "approve" ? !approvable : !post || post.status !== "pending") { skipped++; continue; }
+    // An approval can be withdrawn only while the post is still waiting for its slot: once the publisher has claimed it, it may already be live.
+    const cancellable = post && post.status === "approved" && post.publishAt > now;
+    const allowed = decision === "approve" ? approvable : decision === "cancel" ? cancellable : post && post.status === "pending";
+    if (!allowed) { skipped++; continue; }
     const before = { key, status: post!.status };
     post!.status = decision === "approve" ? "approved" : "rejected";
     post!.updatedAt = now;
-    if (decision === "approve") { post!.approvedAt = now; post!.approvedBy = actor; } else post!.finishedAt = now;
+    if (decision === "approve") { post!.approvedAt = now; post!.approvedBy = actor; }
+    else { post!.finishedAt = now; if (decision === "cancel") post!.result = `האישור בוטל על ידי ${actor} לפני הפרסום`; }
     audit(data, actor, "publication", "UPDATE", { key, status: post!.status, hash: post!.hash, publishAt: post!.publishAt }, before);
     done++;
   }

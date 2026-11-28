@@ -25,7 +25,7 @@ function attention(post: Publication, now: number) {
   return null;
 }
 
-function ReviewForm({ keys, decision, month, children, primary = false }: { keys: string[]; decision: "approve" | "reject"; month: string; children: React.ReactNode; primary?: boolean }) {
+function ReviewForm({ keys, decision, month, children, primary = false }: { keys: string[]; decision: "approve" | "reject" | "cancel"; month: string; children: React.ReactNode; primary?: boolean }) {
   return <form action={reviewPosts}>
     <input type="hidden" name="month" value={month}/><input type="hidden" name="decision" value={decision}/>
     {keys.map(key => <input key={key} type="hidden" name="key" value={key}/>)}
@@ -85,6 +85,9 @@ function PostCard({ post, owner: isOwner, month, now }: { post: Publication; own
     {post.status === "pending" && isOwner && Date.parse(post.publishAt) > now && <div className="pub-actions">
       <ReviewForm keys={[post.key]} decision="approve" month={month} primary>אישור הפוסט</ReviewForm>
       <ReviewForm keys={[post.key]} decision="reject" month={month}>דחייה</ReviewForm>
+    </div>}
+    {post.status === "approved" && isOwner && Date.parse(post.publishAt) > now && <div className="pub-actions">
+      <ReviewForm keys={[post.key]} decision="cancel" month={month}>ביטול האישור (לא יפורסם)</ReviewForm>
     </div>}
     {post.approvedAt && post.approvedBy && <p className="range-label">אושר על ידי {post.approvedBy} · {stamp(post.approvedAt)}</p>}
   </article>;

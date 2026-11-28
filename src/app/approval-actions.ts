@@ -15,7 +15,7 @@ export async function reviewPosts(form: FormData) {
   const { ledger, role, user } = await requireWorkspace();
   const base = `/approvals?month=${resolveMonth(String(form.get("month")))}`;
   if (!ledger || role !== "owner") redirect(base + "&error=permission");
-  const input = z.object({ decision: z.enum(["approve", "reject"]), keys: z.array(recordKey).min(1).max(30) })
+  const input = z.object({ decision: z.enum(["approve", "reject", "cancel"]), keys: z.array(recordKey).min(1).max(30) })
     .safeParse({ decision: form.get("decision"), keys: form.getAll("key") });
   if (!input.success) redirect(base + "&error=validation");
   let outcome: { done: number; skipped: number } | null = null;

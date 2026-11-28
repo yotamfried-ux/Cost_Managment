@@ -156,3 +156,16 @@ test("agent digests are validated strictly, replaced by key, and kept to the lat
   assert.equal(data.crm!.digests.length, 60);
   assert.equal(data.crm!.digests.some(row => row.key === "d1"), false);
 });
+
+test("an approval can be withdrawn only while the post is still waiting for its slot", () => {
+  const data = ingest();
+  assert.deepEqual(reviewPublications(data, ["2026-12-01-a"], "cancel", "owner@d2r.test", at(-60)), { done: 0, skipped: 1 }, "a pending post is rejected, not cancelled");
+  assert.deepEqual(reviewPublications(data, ["2026-12-01-a"], "approve", "owner@d2r.test", at(-60)), { done: 1, skipped: 0 });
+  assert.deepEqual(reviewPublications(data, ["2026-12-01-a"], "cancel", "owner@d2r.test", at(1)), { done: 0, skipped: 1 }, "too late once the slot has arrived");
+  assert.deepEqual(reviewPublications(data, ["2026-12-01-a"], "cancel", "owner@d2r.test", at(-30)), { done: 1, skipped: 0 });
+  const post = data.crm!.publications[0];
+  assert.equal(post.status, "rejected");
+  assert.match(post.result, /בוטל/);
+  assert.equal(claimDue(data, at(10)).item, null, "the publisher never receives a cancelled post");
+  assert.deepEqual(reviewPublications(data, ["2026-12-01-a"], "approve", "owner@d2r.test", at(-20)), { done: 0, skipped: 1 }, "cancelled is final");
+});
